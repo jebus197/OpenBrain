@@ -52,7 +52,10 @@ DB_READER_USER = os.getenv("OPEN_BRAIN_DB_READER_USER", _user_config.get("db_rea
 DB_READER_PASS = os.getenv("OPEN_BRAIN_DB_READER_PASS", _user_config.get("db_reader_pass", "ob_reader_local"))
 
 # Admin connection (for schema setup only — uses current OS user)
-DB_ADMIN_USER = os.getenv("OPEN_BRAIN_DB_ADMIN_USER", os.getenv("USER", "postgres"))
+DB_ADMIN_USER = os.getenv(
+    "OPEN_BRAIN_DB_ADMIN_USER",
+    os.getenv("USER") or os.getenv("USERNAME") or "postgres",
+)
 DB_ADMIN_PASS = os.getenv("OPEN_BRAIN_DB_ADMIN_PASS", "")
 
 

@@ -1,6 +1,6 @@
 # Open Brain Keyboard Shortcuts & Quick Commands
 
-## Shell Aliases
+## Shell Aliases (Bash / Zsh — macOS / Linux)
 
 Add these to your `~/.zshrc` or `~/.bashrc` for quick access:
 
@@ -27,6 +27,13 @@ alias oblog="tail -30 /path/to/OpenBrain/logs/ob_bridge.log"
 alias obstart="launchctl load ~/Library/LaunchAgents/com.openbrain.bridge.plist"
 alias obstop="launchctl unload ~/Library/LaunchAgents/com.openbrain.bridge.plist"
 alias obrestart="launchctl stop com.openbrain.bridge"
+
+# Bridge management (Linux systemd)
+# alias obd="systemctl --user status openbrain-bridge"
+# alias oblog="journalctl --user -u openbrain-bridge --no-pager -n 30"
+# alias obstart="systemctl --user start openbrain-bridge"
+# alias obstop="systemctl --user stop openbrain-bridge"
+# alias obrestart="systemctl --user restart openbrain-bridge"
 ```
 
 After adding, reload your shell:
@@ -34,7 +41,42 @@ After adding, reload your shell:
 source ~/.zshrc
 ```
 
+## PowerShell Functions (Windows)
+
+Add these to your PowerShell profile (`$PROFILE`) for quick access:
+
+```powershell
+# Open Brain CLI shortcuts
+function ob { python -m open_brain.cli @args }
+function obst { ob status }
+function obc { ob capture @args }
+function obs { ob search @args }
+function obl { ob list-recent --limit 10 @args }
+function obp { ob pending-tasks @args }
+function obctx { ob session-context @args }
+
+# IM shortcuts (set OB_PROJECT to your default project)
+$env:OB_PROJECT = "my_project"
+function im { python /path/to/OpenBrain/tools/im_service.py --project $env:OB_PROJECT @args }
+function imr { im read }
+function imp { im post @args }
+function imrs { im r @args }
+
+# Bridge management (Windows Task Scheduler)
+# function obd { schtasks /Query /TN "OpenBrain Bridge" }
+# function obstart { schtasks /Run /TN "OpenBrain Bridge" }
+# function obstop { schtasks /End /TN "OpenBrain Bridge" }
+```
+
+After adding, reload your profile:
+```powershell
+. $PROFILE
+```
+
 ## Common Workflows
+
+Commands below use the aliases/functions defined above. They work identically
+on macOS, Linux, and Windows once you've added the appropriate shortcuts.
 
 ### Agent startup
 ```bash

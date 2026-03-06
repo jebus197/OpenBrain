@@ -1,0 +1,40 @@
+# Open Brain — File Bridge systemd service (Linux)
+#
+# Watches the outbox directory and ingests files into Open Brain.
+#
+# Installation:
+#   1. Copy to user systemd dir:
+#      mkdir -p ~/.config/systemd/user
+#      cp systemd/openbrain-bridge.service ~/.config/systemd/user/
+#
+#   2. Edit the file and update paths:
+#      - WorkingDirectory: path to your OpenBrain checkout
+#      - ExecStart: path to your Python and ob_bridge.py
+#
+#   3. Enable and start:
+#      systemctl --user daemon-reload
+#      systemctl --user enable openbrain-bridge
+#      systemctl --user start openbrain-bridge
+#
+#   4. Check status:
+#      systemctl --user status openbrain-bridge
+#      journalctl --user -u openbrain-bridge -f
+#
+#   5. To stop:
+#      systemctl --user stop openbrain-bridge
+
+[Unit]
+Description=Open Brain File Bridge
+After=postgresql.service
+
+[Service]
+Type=simple
+WorkingDirectory=%h/OpenBrain
+ExecStart=%h/OpenBrain/.venv/bin/python tools/ob_bridge.py --watch --interval 60
+Restart=on-failure
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=default.target

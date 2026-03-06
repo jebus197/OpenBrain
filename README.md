@@ -21,17 +21,26 @@ Open Brain fixes this. Agents write memories to a shared database. Any agent can
 - **IM service** — lightweight inter-agent messaging with rolling buffer (20 messages per stream, file-locked)
 - **Input sanitisation** — prompt-injection pattern detection before storage
 - **Role-separated database access** — reader/writer roles enforce least privilege
+- **Cross-platform** — works on macOS, Linux, and Windows
 - **Fully configurable** — agents, areas, embedding model, token budget — all adjustable per-project or globally
 
 ## Quick Start
 
-### One-line install
+### macOS / Linux
 
 ```bash
 git clone https://github.com/jebus197/OpenBrain.git && cd OpenBrain && ./scripts/install.sh
 ```
 
+### Windows (PowerShell)
+
+```powershell
+git clone https://github.com/jebus197/OpenBrain.git; cd OpenBrain; .\scripts\install.ps1
+```
+
 The install script checks prerequisites (Python 3.9+, PostgreSQL, pgvector), creates a virtualenv, installs dependencies, and launches an interactive setup wizard that configures the database, registers your project, detects your agents, and runs a smoke test.
+
+If Python is installed but not in your PATH, the installer will find it and show the exact command to fix your PATH — it never modifies your shell config automatically.
 
 ### Manual install
 
@@ -41,7 +50,14 @@ git clone https://github.com/jebus197/OpenBrain.git
 cd OpenBrain
 
 # Install
-python3 -m venv .venv && source .venv/bin/activate
+python3 -m venv .venv
+
+# Activate (macOS/Linux)
+source .venv/bin/activate
+
+# Activate (Windows PowerShell)
+# .venv\Scripts\Activate.ps1
+
 pip install -e .
 
 # Setup (interactive wizard — creates DB, roles, schema, registers your project)
@@ -53,13 +69,15 @@ ob-doctor
 
 ### Prerequisites
 
-| Requirement | Version | Install |
-|---|---|---|
-| Python | 3.9+ | [python.org](https://python.org) or `pyenv` |
-| PostgreSQL | 14+ | `brew install postgresql@16` (macOS) / `apt install postgresql` (Ubuntu) |
-| pgvector | 0.5+ | `brew install pgvector` (macOS) / `apt install postgresql-16-pgvector` (Ubuntu) |
+| Requirement | Version | macOS | Linux | Windows |
+|---|---|---|---|---|
+| Python | 3.9+ | `brew install python@3.12` | `apt install python3` | [python.org](https://python.org) or `winget install Python.Python.3.12` |
+| PostgreSQL | 14+ | `brew install postgresql@16` | `apt install postgresql` | [postgresql.org/download/windows](https://www.postgresql.org/download/windows/) |
+| pgvector | 0.5+ | `brew install pgvector` | `apt install postgresql-16-pgvector` | [pgvector#windows](https://github.com/pgvector/pgvector#windows) |
 
 The embedding model (BAAI/bge-small-en-v1.5, ~130 MB) downloads automatically on first use. No API keys needed.
+
+**Windows note:** `psycopg2-binary` may require [Microsoft Visual C++ Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/) if a prebuilt wheel is not available for your Python version.
 
 ## Usage
 
@@ -129,7 +147,10 @@ python3 tools/ob_bridge.py
 python3 tools/ob_bridge.py --watch --interval 60
 ```
 
-On macOS, a launchd plist is provided for automatic startup. See `launchd/` directory.
+**Daemon setup:**
+- macOS: launchd plist provided in `launchd/` directory
+- Linux: systemd unit provided in `systemd/` directory (user-level, `~/.config/systemd/user/`)
+- Windows: use Task Scheduler to run `python tools/ob_bridge.py --watch --interval 60`
 
 ### IM Service (inter-agent messaging)
 
@@ -148,7 +169,7 @@ python3 tools/im_service.py --project my_project recent 5
 
 ## Configuration
 
-Configuration lives in `~/.openbrain/`:
+Configuration lives in `~/.openbrain/` (all platforms — on Windows this is `C:\Users\<you>\.openbrain\`):
 
 ### `~/.openbrain/config.json` — Global settings
 
@@ -212,6 +233,8 @@ Any setting can be overridden with `OPEN_BRAIN_` prefix:
 
 ## Shell Aliases
 
+### Bash / Zsh (macOS / Linux)
+
 Add to `~/.zshrc` or `~/.bashrc`:
 
 ```bash
@@ -222,6 +245,20 @@ alias obs="ob search"
 alias obl="ob list-recent --limit 10"
 alias obp="ob pending-tasks"
 alias obctx="ob session-context"
+```
+
+### PowerShell (Windows)
+
+Add to your `$PROFILE`:
+
+```powershell
+function ob { python -m open_brain.cli @args }
+function obst { ob status }
+function obc { ob capture @args }
+function obs { ob search @args }
+function obl { ob list-recent --limit 10 }
+function obp { ob pending-tasks @args }
+function obctx { ob session-context @args }
 ```
 
 Full alias reference with IM and bridge shortcuts: `templates/SHORTCUTS.md`.
@@ -287,6 +324,7 @@ This checks: Python version, all dependencies, PostgreSQL connectivity, pgvector
 ```bash
 pip install psycopg2-binary
 ```
+On Windows, if this fails, install [Microsoft Visual C++ Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/) first.
 
 **"Database connection failed"** — PostgreSQL not running:
 ```bash
@@ -294,6 +332,8 @@ pip install psycopg2-binary
 brew services start postgresql@16
 # Ubuntu
 sudo systemctl start postgresql
+# Windows
+net start postgresql-x64-16
 ```
 
 **"pgvector not found"** — Install the vector extension:
@@ -303,6 +343,7 @@ brew install pgvector
 # Ubuntu
 sudo apt install postgresql-16-pgvector
 ```
+Windows: see [pgvector Windows instructions](https://github.com/pgvector/pgvector#windows).
 
 **"Role ob_reader does not exist"** — Run the setup wizard:
 ```bash
@@ -321,6 +362,12 @@ OPEN_BRAIN_DB_NAME=open_brain_test python3 -m pytest open_brain/tests/ -v
 
 # Run specific test file
 OPEN_BRAIN_DB_NAME=open_brain_test python3 -m pytest open_brain/tests/test_cli.py -v
+```
+
+On Windows (PowerShell):
+```powershell
+$env:OPEN_BRAIN_DB_NAME = "open_brain_test"
+python -m pytest open_brain/tests/ -v
 ```
 
 ## Supported Agents
@@ -355,8 +402,10 @@ OpenBrain/
 ├── templates/
 │   └── SHORTCUTS.md       # Shell alias reference
 ├── scripts/
-│   └── install.sh         # One-line installer
+│   ├── install.sh         # Installer (macOS / Linux)
+│   └── install.ps1        # Installer (Windows)
 ├── launchd/               # macOS daemon config
+├── systemd/               # Linux daemon config
 ├── pyproject.toml         # Package metadata
 ├── LICENSE                # MIT
 └── README.md              # This file

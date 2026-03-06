@@ -143,16 +143,19 @@ def setup_database() -> bool:
 
     if not _check_postgres():
         _fail("Cannot connect to PostgreSQL.")
-        print("    Install PostgreSQL and ensure it's running.")
-        print("    macOS: brew install postgresql@16 && brew services start postgresql@16")
-        print("    Ubuntu: sudo apt install postgresql postgresql-contrib")
+        print("    Install PostgreSQL and ensure it's running:")
+        print("    macOS:   brew install postgresql@16 && brew services start postgresql@16")
+        print("    Ubuntu:  sudo apt install postgresql postgresql-contrib")
+        print("    Windows: https://www.postgresql.org/download/windows/")
+        print("             or: winget install PostgreSQL.PostgreSQL.16")
         return False
     _ok("PostgreSQL is running")
 
     if not _check_pgvector():
         _warn("pgvector extension not found. Attempting install...")
-        print("    macOS: brew install pgvector")
-        print("    Ubuntu: sudo apt install postgresql-16-pgvector")
+        print("    macOS:   brew install pgvector")
+        print("    Ubuntu:  sudo apt install postgresql-16-pgvector")
+        print("    Windows: https://github.com/pgvector/pgvector#windows")
         if not _ask_yn("Have you installed pgvector? Continue?"):
             return False
 
@@ -333,10 +336,16 @@ def setup_wiring(project_data: dict) -> None:
         print(f"    python3 -m open_brain.cli capture \"text\" --agent {agent} --type insight")
         print()
 
-    print(f"  {BOLD}Shell aliases (optional, add to ~/.zshrc or ~/.bashrc):{RESET}")
-    print(f"    alias ob='python3 -m open_brain.cli'")
-    print(f"    alias obs='python3 -m open_brain.cli search'")
-    print(f"    alias obr='python3 -m open_brain.cli list-recent'")
+    if sys.platform == "win32":
+        print(f"  {BOLD}PowerShell functions (optional, add to $PROFILE):{RESET}")
+        print(f"    function ob {{ python -m open_brain.cli @args }}")
+        print(f"    function obs {{ python -m open_brain.cli search @args }}")
+        print(f"    function obr {{ python -m open_brain.cli list-recent @args }}")
+    else:
+        print(f"  {BOLD}Shell aliases (optional, add to ~/.zshrc or ~/.bashrc):{RESET}")
+        print(f"    alias ob='python3 -m open_brain.cli'")
+        print(f"    alias obs='python3 -m open_brain.cli search'")
+        print(f"    alias obr='python3 -m open_brain.cli list-recent'")
     print()
 
 
@@ -407,6 +416,10 @@ def run_smoke_test() -> bool:
 # ---------------------------------------------------------------------------
 
 def main():
+    # Enable ANSI escape codes on Windows
+    if sys.platform == "win32":
+        os.system("")
+
     print(f"\n{BOLD}{CYAN}")
     print("  Open Brain — Setup Wizard")
     print(f"  Persistent cross-agent memory for AI development{RESET}\n")

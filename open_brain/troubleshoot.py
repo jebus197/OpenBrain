@@ -115,7 +115,7 @@ def check_postgres() -> bool:
         "PostgreSQL client",
         ok,
         version,
-        "Install PostgreSQL. macOS: brew install postgresql@16",
+        "Install PostgreSQL. macOS: brew install postgresql@16 | Ubuntu: apt install postgresql | Windows: postgresql.org/download/windows/",
     ):
         return False
 
@@ -129,7 +129,7 @@ def check_postgres() -> bool:
             "PostgreSQL server",
             result.returncode == 0,
             "running",
-            "Start PostgreSQL. macOS: brew services start postgresql@16",
+            "Start PostgreSQL. macOS: brew services start postgresql@16 | Ubuntu: systemctl start postgresql | Windows: net start postgresql-x64-16",
         )
     except (FileNotFoundError, subprocess.TimeoutExpired):
         return _check("PostgreSQL server", False, fix="Start PostgreSQL")
@@ -147,7 +147,7 @@ def check_pgvector() -> bool:
         return _check(
             "pgvector extension",
             ok,
-            fix="Install pgvector. macOS: brew install pgvector. Ubuntu: apt install postgresql-16-pgvector",
+            fix="Install pgvector. macOS: brew install pgvector | Ubuntu: apt install postgresql-16-pgvector | Windows: github.com/pgvector/pgvector#windows",
         )
     except (FileNotFoundError, subprocess.TimeoutExpired):
         return _check("pgvector extension", False, fix="Install pgvector")
@@ -281,6 +281,10 @@ def check_projects() -> bool:
 # ---------------------------------------------------------------------------
 
 def main():
+    # Enable ANSI escape codes on Windows
+    if sys.platform == "win32":
+        os.system("")
+
     print(f"\n{BOLD}{CYAN}  Open Brain — Diagnostic Report{RESET}\n")
 
     sections = [

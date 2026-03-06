@@ -43,7 +43,6 @@ Config:
 
 from __future__ import annotations
 
-import fcntl
 import json
 import subprocess
 import sys
@@ -51,6 +50,8 @@ from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Generator
+
+from filelock import FileLock
 
 # ---------------------------------------------------------------------------
 # Defaults
@@ -149,43 +150,35 @@ def _locked_state(
     The lock is held for the entire read-modify-write cycle.
     """
     lock_path = state_path.parent / f"{state_path.name}.lock"
-    lock_path.touch(exist_ok=True)
+    lock = FileLock(lock_path)
 
-    with open(lock_path, "r+") as lf:
-        fcntl.flock(lf, fcntl.LOCK_EX)
-        try:
-            if state_path.exists():
-                with open(state_path) as f:
-                    state = json.load(f)
-            else:
-                state = _make_initial_state(agents)
-            _ensure_streams(state, agents)
-            yield state
-            state_path.parent.mkdir(parents=True, exist_ok=True)
-            with open(state_path, "w") as f:
-                json.dump(state, f, indent=2, default=str)
-                f.write("\n")
-        finally:
-            fcntl.flock(lf, fcntl.LOCK_UN)
+    with lock:
+        if state_path.exists():
+            with open(state_path) as f:
+                state = json.load(f)
+        else:
+            state = _make_initial_state(agents)
+        _ensure_streams(state, agents)
+        yield state
+        state_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(state_path, "w") as f:
+            json.dump(state, f, indent=2, default=str)
+            f.write("\n")
 
 
 def _load_readonly(state_path: Path, agents: list[str]) -> dict:
-    """Load state for read-only access (shared lock)."""
+    """Load state for read-only access."""
     lock_path = state_path.parent / f"{state_path.name}.lock"
-    lock_path.touch(exist_ok=True)
+    lock = FileLock(lock_path)
 
-    with open(lock_path, "r+") as lf:
-        fcntl.flock(lf, fcntl.LOCK_SH)
-        try:
-            if state_path.exists():
-                with open(state_path) as f:
-                    state = json.load(f)
-            else:
-                state = _make_initial_state(agents)
-            _ensure_streams(state, agents)
-            return state
-        finally:
-            fcntl.flock(lf, fcntl.LOCK_UN)
+    with lock:
+        if state_path.exists():
+            with open(state_path) as f:
+                state = json.load(f)
+        else:
+            state = _make_initial_state(agents)
+        _ensure_streams(state, agents)
+        return state
 
 
 def _now() -> str:
