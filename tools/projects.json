@@ -1,0 +1,11 @@
+{
+  "_comment": "Open Brain project registry. Each key is a project name. The bridge polls all outboxes listed here. Copy this to ~/.openbrain/projects.json and customise for your setup.",
+  "projects": {
+    "example": {
+      "root": "/path/to/your/project",
+      "outbox": "/path/to/your/project/ob_outbox",
+      "im_state": "/path/to/your/project/im_state.json",
+      "agents": ["agent1", "agent2"]
+    }
+  }
+}

@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- Service identity -->
+    <key>Label</key>
+    <string>com.openbrain.bridge</string>
+
+    <!-- What to run: python3 ob_bridge.py --watch --interval 60 -->
+    <!-- UPDATE: Replace /path/to/OpenBrain with your actual OpenBrain directory -->
+    <key>ProgramArguments</key>
+    <array>
+        <string>/usr/local/bin/python3</string>
+        <string>/path/to/OpenBrain/tools/ob_bridge.py</string>
+        <string>--watch</string>
+        <string>--interval</string>
+        <string>60</string>
+    </array>
+
+    <!-- Working directory -->
+    <key>WorkingDirectory</key>
+    <string>/path/to/OpenBrain</string>
+
+    <!-- Start on login, restart on crash -->
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+
+    <!-- Logging: stdout and stderr to separate files -->
+    <key>StandardOutPath</key>
+    <string>/path/to/OpenBrain/logs/bridge_stdout.log</string>
+    <key>StandardErrorPath</key>
+    <string>/path/to/OpenBrain/logs/bridge_stderr.log</string>
+
+    <!-- Throttle: don't restart faster than every 10 seconds on crash -->
+    <key>ThrottleInterval</key>
+    <integer>10</integer>
+
+    <!-- Environment: ensure Python can find open_brain package -->
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PYTHONPATH</key>
+        <string>/path/to/OpenBrain</string>
+        <key>PATH</key>
+        <string>/usr/local/bin:/usr/bin:/bin</string>
+    </dict>
+</dict>
+</plist>

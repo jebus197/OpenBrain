@@ -1,0 +1,36 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+*.egg
+.eggs/
+
+# Virtual environments
+venv/
+.venv/
+env/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Logs (generated at runtime)
+logs/*.log
+
+# User config (lives in ~/.openbrain/)
+# Do NOT commit user-specific projects.json
+
+# Test artifacts
+.pytest_cache/
+htmlcov/
+.coverage
+
+# Sentence-transformers model cache
+.cache/

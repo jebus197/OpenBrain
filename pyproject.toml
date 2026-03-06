@@ -1,0 +1,52 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.backends._legacy:_Backend"
+
+[project]
+name = "open-brain"
+version = "1.0.0"
+description = "Persistent cross-agent memory and coordination for multi-agent AI projects"
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.9"
+authors = [
+    {name = "George Jackson"}
+]
+keywords = ["ai", "agents", "memory", "mcp", "multi-agent", "coordination", "llm"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development :: Libraries",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+dependencies = [
+    "psycopg2-binary>=2.9",
+    "sentence-transformers>=2.2",
+    "numpy>=1.24",
+    "mcp>=1.0",
+    "pgvector>=0.2",
+]
+
+[project.urls]
+Homepage = "https://github.com/jebus197/OpenBrain"
+Repository = "https://github.com/jebus197/OpenBrain"
+Issues = "https://github.com/jebus197/OpenBrain/issues"
+
+[project.scripts]
+open-brain = "open_brain.cli:main"
+ob = "open_brain.cli:main"
+ob-setup = "open_brain.setup_wizard:main"
+ob-doctor = "open_brain.troubleshoot:main"
+
+[tool.setuptools.packages.find]
+include = ["open_brain*"]
+
+[tool.pytest.ini_options]
+testpaths = ["open_brain/tests"]
