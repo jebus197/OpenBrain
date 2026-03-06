@@ -25,7 +25,6 @@
 
 [Unit]
 Description=Open Brain File Bridge
-After=postgresql.service
 
 [Service]
 Type=simple

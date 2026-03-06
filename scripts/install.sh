@@ -119,7 +119,7 @@ if [ -z "$PYTHON" ]; then
         # Handle glob patterns
         for dir in $dir_pattern; do
             [ -d "$dir" ] || continue
-            for name in python3 python; do
+            for name in python3.13 python3.12 python3.11 python3.10 python3.9 python3 python; do
                 candidate="$dir/$name"
                 if [ -x "$candidate" ] && _check_python_version "$candidate"; then
                     FOUND_PYTHON="$candidate"
@@ -150,7 +150,7 @@ if [ -z "$PYTHON" ]; then
                 ;;
         esac
         echo ""
-        read -p "  Press Enter after updating your PATH to retry, or Ctrl-C to exit... " -r
+        read -p "  Press Enter after updating your PATH to retry, or Ctrl-C to exit... " -r < /dev/tty
         echo ""
 
         # Retry
@@ -300,7 +300,7 @@ echo "  To activate the environment:"
 echo "    source $VENV_DIR/bin/activate"
 echo ""
 
-read -p "  Launch setup wizard now? [Y/n] " -n 1 -r
+read -p "  Launch setup wizard now? [Y/n] " -n 1 -r < /dev/tty
 echo ""
 
 if [[ $REPLY =~ ^[Nn]$ ]]; then

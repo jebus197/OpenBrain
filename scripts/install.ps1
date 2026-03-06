@@ -15,7 +15,10 @@
 #
 # macOS/Linux users: use scripts/install.sh instead.
 
-$ErrorActionPreference = "Stop"
+# NOTE: We intentionally use the default ErrorActionPreference ("Continue")
+# because "Stop" causes native commands (git, pip, python) to terminate the
+# script when they write to stderr — which they routinely do for progress
+# output, warnings, etc.  We check $LASTEXITCODE explicitly where needed.
 
 function Write-Ok($msg)   { Write-Host "  OK " -ForegroundColor Green -NoNewline; Write-Host $msg }
 function Write-Warn($msg) { Write-Host "  !! " -ForegroundColor Yellow -NoNewline; Write-Host $msg }
@@ -223,9 +226,8 @@ if (-not (Test-Path $venvDir)) {
 & pip install --upgrade pip -q 2>$null
 Write-Ok "pip updated"
 
-try {
-    & pip install -e ".[dev]" -q 2>$null
-} catch {
+& pip install -e ".[dev]" -q 2>$null
+if ($LASTEXITCODE -ne 0) {
     & pip install -e . -q
 }
 Write-Ok "Dependencies installed"

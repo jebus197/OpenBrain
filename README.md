@@ -122,6 +122,8 @@ Add to your agent's MCP configuration (e.g. `.claude/settings.json`):
 }
 ```
 
+**Windows note:** Use `"python"` instead of `"python3"` — standard Windows Python installs don't create a `python3` executable.
+
 The MCP server exposes six tools: `capture_memory`, `semantic_search`, `list_recent`, `get_pending_tasks`, `update_task_status`, `get_session_context`. These appear natively in the agent's tool palette.
 
 ### File Bridge (for sandboxed agents)
