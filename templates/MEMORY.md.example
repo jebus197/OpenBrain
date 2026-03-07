@@ -1,0 +1,67 @@
+# Project Memory — Example
+
+Copy this to your agent's project-level memory location (e.g.
+`~/.claude/projects/<project-path>/memory/MEMORY.md`) and adapt the sections
+to your project. This file is loaded at the start of every session, giving
+your agent persistent context across session boundaries.
+
+Keep it concise. This file is consumed on every session start — bloat here
+costs tokens on every interaction. Per-commit detail belongs in checkpoint
+files, not here.
+
+---
+
+## Project
+<!-- One-line description. What is this project? -->
+
+## Owner
+<!-- Who owns the project, where the repo lives, key paths. -->
+
+## Communication Protocol
+<!-- Define your shorthand signals here. Example:
+- y = yes/approved
+- t = continue
+- d = discuss before proceeding
+- p = Popperian falsification pass
+-->
+
+## Key Decisions
+<!-- Confirmed architectural and design decisions. One line each.
+These prevent agents from relitigating settled questions. Example:
+- Stack: FastAPI + PostgreSQL + HTMX
+- Auth: JWT tokens, no session cookies
+- Testing: pytest, minimum 80% coverage on new code
+-->
+
+## Current State
+<!-- What has been done, what's the latest commit, test count, pending items.
+Keep this under 40 lines. Update every session. Example:
+- 127 tests passing
+- HEAD: abc1234 — added user registration endpoint
+- Auth module complete, payment integration in progress
+-->
+
+## Strategic Gaps
+<!-- Known issues that aren't current blockers but will become pressing at
+specific triggers. Include the trigger condition so agents know when to act.
+Example:
+- Rate limiting: not needed at current scale. TRIGGER: before public launch.
+- Database migration tooling: manual SQL currently. TRIGGER: when schema
+  changes exceed 3 per week.
+-->
+
+## Infrastructure Not Yet Built
+<!-- Deferred work with clear trigger conditions. Similar to strategic gaps
+but for missing components rather than design issues. -->
+
+## What Remains
+<!-- High-level roadmap of remaining work. Not a task list — that's what
+Open Brain's task system is for. This is the big picture. -->
+
+## Session Tips
+<!-- Practical notes for agents starting a session. What to read first,
+common pitfalls, environment setup notes. Example:
+- Read ACTION_QUEUE.md on every session start
+- Run `ob session-context --agent cc` for pending tasks
+- Keep sessions short — commit at each milestone
+-->

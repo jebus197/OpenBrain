@@ -284,6 +284,14 @@ Full alias reference with IM and bridge shortcuts: `templates/SHORTCUTS.md`.
 +---------------------------------------------------------+
 ```
 
+## Methodology
+
+Open Brain is one component of a structured approach to human-AI collaboration. The full approach combines three elements: **persistent memory** (Open Brain), **agent directives** (a set of behavioural instructions loaded at session start), and **a coordination protocol** (IM service + project-level memory files). Together, these compensate for the three biggest weaknesses in current AI agent workflows: context loss across sessions, uncritical compliance with instructions, and isolation between agents.
+
+The directives emphasise falsification — actively trying to disprove conclusions before presenting them — as the primary quality gate. This is Karl Popper's principle applied to software engineering: every claim, every fix, every architectural choice should be subjected to deliberate attempts to break it. What survives is robust; what doesn't is caught before it ships. The methodology also enforces simplicity (default to the simplest sufficient solution), honesty (say "I don't know" when that's the truth), and resource discipline (flag wasteful work before executing it).
+
+The `templates/` directory contains example configurations for the full approach: `CLAUDE.md.example` (agent directives), `MEMORY.md.example` (project-level persistent context), `RECOVERY.md.example` (session recovery protocol), and `SHORTCUTS.md` (shell aliases). These are opt-in — Open Brain works without them, but the combination produces measurably better outcomes than any component alone. The claim is falsifiable: adopt the approach, measure whether your outcomes improve, discard what doesn't work.
+
 ## Dual-System Protocol
 
 Open Brain and the IM service are complementary:
@@ -402,6 +410,9 @@ OpenBrain/
 │   ├── im_service.py      # Inter-agent messaging
 │   └── projects.json      # Example project registry
 ├── templates/
+│   ├── CLAUDE.md.example  # Agent directive template
+│   ├── MEMORY.md.example  # Project memory template
+│   ├── RECOVERY.md.example # Session recovery template
 │   └── SHORTCUTS.md       # Shell alias reference
 ├── scripts/
 │   ├── install.sh         # Installer (macOS / Linux)
