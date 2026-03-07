@@ -26,7 +26,7 @@ Open Brain is one component of a structured approach to human-AI collaboration. 
 
 - **A coordination protocol** — an inter-agent messaging service (lightweight, rolling buffer) paired with project-level memory files that give agents startup context. The messaging service handles real-time notifications; Open Brain handles persistent knowledge. Both are consulted on agent startup. Neither replaces the other.
 
-Together, these compensate for the three weaknesses described above. The `templates/` directory contains example configurations for all three elements: `CLAUDE.md.example` (agent directives), `MEMORY.md.example` (project-level persistent context), `RECOVERY.md.example` (session recovery protocol), and `SHORTCUTS.md` (shell aliases). These are opt-in — Open Brain works without them, but the combination produces measurably better outcomes than any component alone. The claim is falsifiable: adopt the approach, measure whether your outcomes improve, discard what doesn't work.
+Together, these compensate for the three weaknesses described above. The `templates/` directory contains example configurations for all three elements: `CLAUDE.md.example` (agent directives), `MEMORY.md.example` (project-level persistent context), `RECOVERY.md.example` (session recovery protocol), and `SHORTCUTS.md` (shell aliases). These are opt-in — Open Brain works without them, but no single component addresses all three weaknesses. Memory alone doesn't fix uncritical compliance; directives alone don't survive context loss; coordination alone doesn't fix either. The combination is designed to cover all three, and the claim is falsifiable: adopt it, measure whether your outcomes change, discard what doesn't work.
 
 ## Getting Started
 
