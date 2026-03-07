@@ -2,29 +2,39 @@
 
 Persistent cross-agent memory for AI-assisted software development.
 
-Open Brain gives your AI coding agents (Claude Code, Codex, Copilot, Cursor, Aider, Windsurf — any of them) a **shared, persistent memory** backed by PostgreSQL and semantic vector search. Every insight, decision, task, and session summary survives across sessions, across agents, and across projects.
+If you use AI coding agents — Claude Code, Codex, Copilot, Cursor, Aider, Windsurf, or any combination — Open Brain gives them a shared memory that survives across sessions, across agents, and across projects. Agents remember what was decided, what was tried, what worked, and what didn't. They coordinate instead of repeating each other's work. The memory is searchable by meaning, not just keywords, so an agent can ask "what did we decide about authentication?" and get the relevant decision even if the word "authentication" was never used.
 
-## Why?
+## The Problem
 
-AI coding agents are stateless by default. Every new session starts from zero. If you use multiple agents — or even the same agent across sessions — context is lost, decisions are forgotten, and work is repeated.
+AI coding agents are stateless. Every new session starts from zero — previous decisions, architectural choices, debugging insights, and task assignments are gone. This creates three compounding failures:
 
-Open Brain fixes this. Agents write memories to a shared database. Any agent can search them semantically ("what did we decide about authentication?") or browse recent activity. The result: agents that remember, coordinate, and build on each other's work.
+1. **Context loss across sessions.** An agent spends the first portion of every session rediscovering what the previous session already established. On long-running projects, this cost grows with every session boundary.
 
-## What It Does
+2. **Uncritical compliance.** Without persistent context, agents have no basis to push back on instructions that contradict earlier decisions. They execute whatever they're told, even when the instruction conflicts with work already done. Agent directives (behavioural instructions loaded at session start) can counteract this, but only if the agent retains enough context to apply them meaningfully.
 
-- **Semantic search** — find memories by meaning, not keywords (powered by pgvector + BAAI/bge-small-en-v1.5, 384 dimensions, runs locally, zero API cost)
-- **Multi-agent coordination** — any number of agents share one brain, each identified by name
-- **Structured memory types** — decisions, tasks, insights, session summaries, blockers, reviews, handoffs
-- **Task lifecycle** — pending → in_progress → blocked → completed → cancelled, with assignments
-- **Session context** — agents get pending tasks, blocked items, and recent activity from other agents on startup
-- **Three access methods** — MCP server (for Claude Code and compatible agents), CLI (for everything), file bridge (for sandboxed agents)
-- **IM service** — lightweight inter-agent messaging with rolling buffer (20 messages per stream, file-locked)
-- **Input sanitisation** — prompt-injection pattern detection before storage
-- **Role-separated database access** — reader/writer roles enforce least privilege
-- **Cross-platform** — works on macOS, Linux, and Windows
-- **Fully configurable** — agents, areas, embedding model, token budget — all adjustable per-project or globally
+3. **Isolation between agents.** When multiple agents work on the same project — a common pattern as teams adopt different tools for different tasks — each agent operates in its own silo. Agent A's insights are invisible to Agent B. Work is duplicated, decisions diverge, and integration failures emerge late.
 
-## Quick Start
+Open Brain addresses all three. Agents write memories to a shared database. Any agent can search them semantically or browse recent activity. The result: agents that remember, coordinate, and build on each other's work.
+
+## The Approach
+
+Open Brain is one component of a structured approach to human-AI collaboration. The full approach combines three elements:
+
+- **Persistent memory** (Open Brain) — a shared database where agents store and retrieve decisions, insights, tasks, session summaries, and coordination messages. Searchable by meaning using vector embeddings that run locally with zero API cost.
+
+- **Agent directives** — a set of behavioural instructions loaded at session start that shape how the agent works. The directives used in developing Open Brain emphasise falsification (actively trying to disprove conclusions before presenting them), simplicity (default to the simplest sufficient solution), honesty (say "I don't know" when that's the truth), and resource discipline (flag wasteful work before executing it). This is Karl Popper's principle of falsification applied to software engineering: subject every claim, fix, and architectural choice to deliberate attempts to break it. What survives is robust; what doesn't is caught before it ships.
+
+- **A coordination protocol** — an inter-agent messaging service (lightweight, rolling buffer) paired with project-level memory files that give agents startup context. The messaging service handles real-time notifications; Open Brain handles persistent knowledge. Both are consulted on agent startup. Neither replaces the other.
+
+Together, these compensate for the three weaknesses described above. The `templates/` directory contains example configurations for all three elements: `CLAUDE.md.example` (agent directives), `MEMORY.md.example` (project-level persistent context), `RECOVERY.md.example` (session recovery protocol), and `SHORTCUTS.md` (shell aliases). These are opt-in — Open Brain works without them, but the combination produces measurably better outcomes than any component alone. The claim is falsifiable: adopt the approach, measure whether your outcomes improve, discard what doesn't work.
+
+---
+
+*Everything below is implementation detail. If you want to start using Open Brain, begin with Getting Started. The Reference sections provide the full technical specification.*
+
+---
+
+## Getting Started
 
 ### macOS / Linux
 
@@ -79,7 +89,32 @@ The embedding model (BAAI/bge-small-en-v1.5, ~130 MB) downloads automatically on
 
 **Windows note:** `psycopg2-binary` may require [Microsoft Visual C++ Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/) if a prebuilt wheel is not available for your Python version.
 
-## Usage
+---
+
+## Reference
+
+### Capabilities
+
+- **Semantic search** — find memories by meaning, not keywords (pgvector + BAAI/bge-small-en-v1.5, 384-dimensional embeddings, runs locally, zero API cost)
+- **Multi-agent coordination** — any number of agents share one brain, each identified by name
+- **Structured memory types** — decisions, tasks, insights, session summaries, blockers, reviews, handoffs
+- **Task lifecycle** — pending → in_progress → blocked → completed → cancelled, with assignments
+- **Session context** — agents get pending tasks, blocked items, and recent activity from other agents on startup
+- **Three access methods** — MCP server (for Claude Code and compatible agents), CLI (for everything), file bridge (for sandboxed agents)
+- **IM service** — lightweight inter-agent messaging with rolling buffer (20 messages per stream, file-locked)
+- **Input sanitisation** — prompt-injection pattern detection before storage
+- **Role-separated database access** — reader/writer roles enforce least privilege
+- **Cross-platform** — macOS, Linux, and Windows
+- **Fully configurable** — agents, areas, embedding model, token budget — all adjustable per-project or globally
+
+### Supported Agents
+
+Open Brain is agent-agnostic. Any AI coding agent that can either:
+- Use MCP tools (Claude Code, Claude Desktop, compatible editors)
+- Run shell commands (OpenAI Codex, GitHub Copilot in terminal, Aider, Cursor, Windsurf)
+- Write files to a directory (sandboxed environments)
+
+can use Open Brain. The setup wizard auto-detects common agents and generates wiring instructions.
 
 ### CLI
 
@@ -169,11 +204,11 @@ python3 tools/im_service.py --project my_project read
 python3 tools/im_service.py --project my_project recent 5
 ```
 
-## Configuration
+### Configuration
 
 Configuration lives in `~/.openbrain/` (all platforms — on Windows this is `C:\Users\<you>\.openbrain\`):
 
-### `~/.openbrain/config.json` — Global settings
+#### `~/.openbrain/config.json` — Global settings
 
 ```json
 {
@@ -190,7 +225,7 @@ Configuration lives in `~/.openbrain/` (all platforms — on Windows this is `C:
 
 All fields are optional — defaults are shown above.
 
-### `~/.openbrain/projects.json` — Project registry
+#### `~/.openbrain/projects.json` — Project registry
 
 ```json
 {
@@ -209,7 +244,7 @@ All fields are optional — defaults are shown above.
 }
 ```
 
-### Environment variables
+#### Environment variables
 
 Any setting can be overridden with `OPEN_BRAIN_` prefix:
 
@@ -221,7 +256,7 @@ Any setting can be overridden with `OPEN_BRAIN_` prefix:
 | `OPEN_BRAIN_TOKEN_BUDGET` | `2000` | Max tokens per MCP search response |
 | `OPEN_BRAIN_CONFIG_DIR` | `~/.openbrain` | Config directory location |
 
-## Memory Types
+### Memory Types
 
 | Type | Use for |
 |---|---|
@@ -233,9 +268,9 @@ Any setting can be overridden with `OPEN_BRAIN_` prefix:
 | `review` | Code review or assessment |
 | `handoff` | Context transfer between agents |
 
-## Shell Aliases
+### Shell Aliases
 
-### Bash / Zsh (macOS / Linux)
+#### Bash / Zsh (macOS / Linux)
 
 Add to `~/.zshrc` or `~/.bashrc`:
 
@@ -249,7 +284,7 @@ alias obp="ob pending-tasks"
 alias obctx="ob session-context"
 ```
 
-### PowerShell (Windows)
+#### PowerShell (Windows)
 
 Add to your `$PROFILE`:
 
@@ -265,7 +300,7 @@ function obctx { ob session-context @args }
 
 Full alias reference with IM and bridge shortcuts: `templates/SHORTCUTS.md`.
 
-## Architecture
+### Architecture
 
 ```
 +---------------------------------------------------------+
@@ -284,24 +319,7 @@ Full alias reference with IM and bridge shortcuts: `templates/SHORTCUTS.md`.
 +---------------------------------------------------------+
 ```
 
-## Methodology
-
-Open Brain is one component of a structured approach to human-AI collaboration. The full approach combines three elements: **persistent memory** (Open Brain), **agent directives** (a set of behavioural instructions loaded at session start), and **a coordination protocol** (IM service + project-level memory files). Together, these compensate for the three biggest weaknesses in current AI agent workflows: context loss across sessions, uncritical compliance with instructions, and isolation between agents.
-
-The directives emphasise falsification — actively trying to disprove conclusions before presenting them — as the primary quality gate. This is Karl Popper's principle applied to software engineering: every claim, every fix, every architectural choice should be subjected to deliberate attempts to break it. What survives is robust; what doesn't is caught before it ships. The methodology also enforces simplicity (default to the simplest sufficient solution), honesty (say "I don't know" when that's the truth), and resource discipline (flag wasteful work before executing it).
-
-The `templates/` directory contains example configurations for the full approach: `CLAUDE.md.example` (agent directives), `MEMORY.md.example` (project-level persistent context), `RECOVERY.md.example` (session recovery protocol), and `SHORTCUTS.md` (shell aliases). These are opt-in — Open Brain works without them, but the combination produces measurably better outcomes than any component alone. The claim is falsifiable: adopt the approach, measure whether your outcomes improve, discard what doesn't work.
-
-## Dual-System Protocol
-
-Open Brain and the IM service are complementary:
-
-- **Open Brain**: Persistent memory. Survives session boundaries, agent restarts, context loss. Searchable by meaning. Used for: session summaries, decisions, insights, tasks, blockers.
-- **IM Service**: Real-time coordination. Rolling buffer (20 entries per stream). Used for: immediate notifications, work-in-progress updates, cross-agent requests. Not permanent — old entries auto-cull.
-
-Both should be consulted on agent startup. Neither replaces the other.
-
-## Database Schema
+### Database Schema
 
 Single table, deliberately simple:
 
@@ -318,7 +336,23 @@ CREATE TABLE memories (
 
 Metadata is flexible JSONB: `source_agent`, `memory_type`, `area`, `action_status`, `assigned_to`, `priority`, plus anything else you need. Indexed with GIN for fast filtering.
 
-## Troubleshooting
+### Testing
+
+```bash
+# Run all tests (uses open_brain_test database)
+OPEN_BRAIN_DB_NAME=open_brain_test python3 -m pytest open_brain/tests/ -v
+
+# Run specific test file
+OPEN_BRAIN_DB_NAME=open_brain_test python3 -m pytest open_brain/tests/test_cli.py -v
+```
+
+On Windows (PowerShell):
+```powershell
+$env:OPEN_BRAIN_DB_NAME = "open_brain_test"
+python -m pytest open_brain/tests/ -v
+```
+
+### Troubleshooting
 
 Run the diagnostic tool:
 
@@ -328,7 +362,7 @@ ob-doctor
 
 This checks: Python version, all dependencies, PostgreSQL connectivity, pgvector extension, database schema, role permissions, embedding model, config files, and registered projects. Each check reports PASS/FAIL with specific fix instructions.
 
-### Common issues
+#### Common issues
 
 **"psycopg2 not found"** — Install the database driver:
 ```bash
@@ -364,32 +398,7 @@ ob-setup
 
 **MCP server not appearing in Claude Code** — Verify the path in your MCP config points to the correct OpenBrain directory. Restart Claude Code after changing MCP settings.
 
-## Testing
-
-```bash
-# Run all tests (uses open_brain_test database)
-OPEN_BRAIN_DB_NAME=open_brain_test python3 -m pytest open_brain/tests/ -v
-
-# Run specific test file
-OPEN_BRAIN_DB_NAME=open_brain_test python3 -m pytest open_brain/tests/test_cli.py -v
-```
-
-On Windows (PowerShell):
-```powershell
-$env:OPEN_BRAIN_DB_NAME = "open_brain_test"
-python -m pytest open_brain/tests/ -v
-```
-
-## Supported Agents
-
-Open Brain is agent-agnostic. Any AI coding agent that can either:
-- Use MCP tools (Claude Code, Claude Desktop, compatible editors)
-- Run shell commands (OpenAI Codex, GitHub Copilot in terminal, Aider, Cursor, Windsurf)
-- Write files to a directory (sandboxed environments)
-
-can use Open Brain. The setup wizard auto-detects common agents and generates wiring instructions.
-
-## Project Structure
+### Project Structure
 
 ```
 OpenBrain/
