@@ -28,12 +28,6 @@ Open Brain is one component of a structured approach to human-AI collaboration. 
 
 Together, these compensate for the three weaknesses described above. The `templates/` directory contains example configurations for all three elements: `CLAUDE.md.example` (agent directives), `MEMORY.md.example` (project-level persistent context), `RECOVERY.md.example` (session recovery protocol), and `SHORTCUTS.md` (shell aliases). These are opt-in — Open Brain works without them, but the combination produces measurably better outcomes than any component alone. The claim is falsifiable: adopt the approach, measure whether your outcomes improve, discard what doesn't work.
 
----
-
-*Everything below is implementation detail. If you want to start using Open Brain, begin with Getting Started. The Reference sections provide the full technical specification.*
-
----
-
 ## Getting Started
 
 ### macOS / Linux
@@ -88,6 +82,10 @@ ob-doctor
 The embedding model (BAAI/bge-small-en-v1.5, ~130 MB) downloads automatically on first use. No API keys needed.
 
 **Windows note:** `psycopg2-binary` may require [Microsoft Visual C++ Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/) if a prebuilt wheel is not available for your Python version.
+
+---
+
+*Everything above covers what Open Brain is and how to install it. The sections below are detailed reference — consult them as needed.*
 
 ---
 
