@@ -54,6 +54,25 @@ python3 -m open_brain.im_bridge post myagent "message"
 python3 -m open_brain.im_bridge action "IN_PROGRESS" "summary"
 ```
 
+## Integrity and Security
+
+```bash
+python3 -m open_brain.cli generate-keys       # Create Ed25519 keypair (one-time)
+python3 -m open_brain.cli export out.jsonl     # Portable JSONL export
+python3 -m open_brain.cli export e.jsonl --encrypt  # AES-256-GCM encrypted export
+python3 -m open_brain.cli import e.jsonl --decrypt  # Decrypt and import
+python3 -m open_brain.cli verify               # Verify hash chain + signatures
+python3 -m open_brain.cli migrate              # Apply pending schema migrations
+```
+
+- **Content hash**: SHA-256 of canonical `{raw_text, metadata}` JSON — detects any tampering
+- **Hash chain**: each memory links to its predecessor — detects reordering or deletion
+- **Ed25519 signing** (RFC 8032): cryptographic proof of origin per node — auto-signs when keypair exists, degrades gracefully when not
+- **AES-256-GCM encryption** (NIST SP 800-38D): passphrase-protected exports via Scrypt key derivation (RFC 7914)
+- **Node identity**: stable per-machine identifier in every memory's metadata
+
+All primitives are platform-agnostic (macOS, Linux, Windows). No proprietary dependencies.
+
 ## Database
 
 - **Host**: localhost:5432
