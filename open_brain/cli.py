@@ -74,17 +74,27 @@ def main(argv=None):
     p_export.add_argument("output", help="Output file path (.jsonl)")
     p_export.add_argument("--project", help="Filter by project")
     p_export.add_argument("--since", help="Export memories created after this ISO date")
+    p_export.add_argument("--encrypt", metavar="PASSPHRASE",
+                          help="Encrypt the export file with AES-256-GCM")
 
     # import
     p_import = sub.add_parser("import", help="Import memories from JSONL file")
     p_import.add_argument("input", help="Input JSONL file path")
+    p_import.add_argument("--decrypt", metavar="PASSPHRASE",
+                          help="Decrypt the file before importing (AES-256-GCM)")
 
     # verify
-    sub.add_parser("verify", help="Verify hash chain integrity")
+    sub.add_parser("verify", help="Verify hash chain integrity and signatures")
 
     # migrate
     p_migrate = sub.add_parser("migrate", help="Run database migration")
     p_migrate.add_argument("migration", help="Migration file path (.sql)")
+
+    # generate-keys
+    p_genkeys = sub.add_parser("generate-keys",
+                               help="Generate Ed25519 keypair for this node")
+    p_genkeys.add_argument("--force", action="store_true",
+                           help="Regenerate even if keys exist (invalidates signatures)")
 
     args = parser.parse_args(argv)
 
@@ -111,6 +121,8 @@ def main(argv=None):
             _cmd_verify()
         elif args.command == "migrate":
             _cmd_migrate(args)
+        elif args.command == "generate-keys":
+            _cmd_generate_keys(args)
     except Exception as e:
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
@@ -255,14 +267,31 @@ def _cmd_export(args):
         print("No memories to export.")
         return
 
-    with open(args.output, "w", encoding="utf-8") as f:
-        for mem in memories:
-            f.write(json.dumps(mem, separators=(",", ":")) + "\n")
+    # Write JSONL content
+    jsonl_content = ""
+    for mem in memories:
+        jsonl_content += json.dumps(mem, separators=(",", ":")) + "\n"
 
-    print(f"Exported {len(memories)} memories to {args.output}")
+    if args.encrypt:
+        # Write plaintext to a temp location, then encrypt
+        from open_brain.crypto import encrypt_bytes
+        encrypted = encrypt_bytes(jsonl_content.encode("utf-8"), args.encrypt)
+        with open(args.output, "wb") as f:
+            f.write(encrypted)
+        print(f"Exported {len(memories)} memories to {args.output} (encrypted)")
+    else:
+        with open(args.output, "w", encoding="utf-8") as f:
+            f.write(jsonl_content)
+        print(f"Exported {len(memories)} memories to {args.output}")
+
     latest_hash = memories[-1].get("content_hash")
     if latest_hash:
         print(f"  Chain head: {latest_hash}")
+
+    # Report signing status
+    signed = sum(1 for m in memories if m.get("signature"))
+    if signed:
+        print(f"  Signed: {signed}/{len(memories)}")
 
 
 def _cmd_import(args):
@@ -270,21 +299,36 @@ def _cmd_import(args):
         print(f"File not found: {args.input}", file=sys.stderr)
         sys.exit(1)
 
+    # Read file content — decrypt if needed
+    if args.decrypt:
+        from open_brain.crypto import decrypt_bytes
+        with open(args.input, "rb") as f:
+            encrypted_data = f.read()
+        try:
+            plaintext = decrypt_bytes(encrypted_data, args.decrypt)
+        except Exception as e:
+            print(f"Decryption failed: {e}", file=sys.stderr)
+            print("  Wrong passphrase or corrupted file.", file=sys.stderr)
+            sys.exit(1)
+        lines = plaintext.decode("utf-8").splitlines()
+    else:
+        with open(args.input, "r", encoding="utf-8") as f:
+            lines = f.readlines()
+
     counts = {"inserted": 0, "skipped": 0, "conflict": 0}
 
-    with open(args.input, "r", encoding="utf-8") as f:
-        for line_no, line in enumerate(f, 1):
-            line = line.strip()
-            if not line:
-                continue
-            try:
-                mem = json.loads(line)
-            except json.JSONDecodeError as e:
-                print(f"  Line {line_no}: invalid JSON — {e}", file=sys.stderr)
-                continue
+    for line_no, line in enumerate(lines, 1):
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            mem = json.loads(line)
+        except json.JSONDecodeError as e:
+            print(f"  Line {line_no}: invalid JSON — {e}", file=sys.stderr)
+            continue
 
-            result = db.import_memory(mem)
-            counts[result] += 1
+        result = db.import_memory(mem)
+        counts[result] += 1
 
     total = counts["inserted"] + counts["skipped"] + counts["conflict"]
     print(f"Import complete: {total} memories processed")
@@ -318,6 +362,33 @@ def _cmd_verify():
     else:
         sys.exit(1)
 
+    # Signature verification
+    signed = [m for m in memories if m.get("signature")]
+    unsigned = [m for m in memories if m.get("content_hash") and not m.get("signature")]
+
+    if signed:
+        try:
+            from open_brain.crypto import verify_signature
+            valid_sigs = 0
+            bad_sigs = []
+            for m in signed:
+                if verify_signature(m["raw_text"], m["metadata"], m["signature"]):
+                    valid_sigs += 1
+                else:
+                    bad_sigs.append(str(m["id"]))
+            print(f"\n  Signatures: {valid_sigs}/{len(signed)} verified")
+            if unsigned:
+                print(f"  Unsigned (pre-keygen): {len(unsigned)}")
+            if bad_sigs:
+                print(f"  INVALID signatures: {len(bad_sigs)}")
+                for bid in bad_sigs[:5]:
+                    print(f"    {bid}")
+                sys.exit(1)
+        except FileNotFoundError:
+            print(f"\n  Signed memories: {len(signed)} (no local key to verify against)")
+    elif memories:
+        print(f"\n  Signatures: none (no keypair configured)")
+
 
 def _cmd_migrate(args):
     if not os.path.isfile(args.migration):
@@ -329,6 +400,23 @@ def _cmd_migrate(args):
 
     db.run_migration(sql)
     print(f"Migration applied: {args.migration}")
+
+
+def _cmd_generate_keys(args):
+    from open_brain.crypto import generate_keypair, has_keypair, KEYS_DIR
+
+    if has_keypair() and not args.force:
+        print(f"Keypair already exists at {KEYS_DIR}")
+        print("  Use --force to regenerate (invalidates existing signatures)")
+        return
+
+    pub_path = generate_keypair(force=args.force)
+    print(f"Ed25519 keypair generated")
+    print(f"  Keys directory: {KEYS_DIR}")
+    print(f"  Public key: {pub_path}")
+    print(f"  New memories will be signed automatically")
+    if args.force:
+        print("  WARNING: existing signatures from this node are now invalid")
 
 
 # ---------------------------------------------------------------------------

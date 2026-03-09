@@ -15,6 +15,7 @@ CREATE TABLE IF NOT EXISTS memories (
     embedding_model TEXT NOT NULL DEFAULT 'BAAI/bge-small-en-v1.5',
     content_hash    TEXT,              -- SHA-256 of canonical {raw_text, metadata}
     previous_hash   TEXT,              -- Hash chain link to predecessor
+    signature       TEXT,              -- Ed25519 signature (hex) over canonical content
     metadata        JSONB NOT NULL DEFAULT '{}',
     created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
 );

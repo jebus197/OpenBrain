@@ -61,12 +61,17 @@ def insert_memory(
     embedding_model: str = config.EMBEDDING_MODEL_NAME,
     content_hash: Optional[str] = None,
     previous_hash: Optional[str] = None,
+    signature: Optional[str] = None,
 ) -> str:
-    """Insert a memory with hash chain linking. Returns UUID.
+    """Insert a memory with hash chain linking and optional signing.
+
+    Returns UUID.
 
     If content_hash is None, it is computed from raw_text + metadata.
     If previous_hash is None, it is fetched from the most recent memory
     within the same transaction (or GENESIS_HASH if the chain is empty).
+    If signature is None and a keypair exists, the memory is signed
+    automatically. Pass signature="" to explicitly skip signing.
     """
     import numpy as np
     from open_brain.hashing import compute_content_hash, GENESIS_HASH
@@ -76,6 +81,15 @@ def insert_memory(
 
     if content_hash is None:
         content_hash = compute_content_hash(raw_text, metadata)
+
+    # Auto-sign if keypair exists and signature not explicitly provided
+    if signature is None:
+        try:
+            from open_brain.crypto import sign_memory, has_keypair
+            if has_keypair():
+                signature = sign_memory(raw_text, metadata)
+        except Exception:
+            pass  # Signing is optional — degrade gracefully
 
     with write_conn() as conn:
         with conn.cursor() as cur:
@@ -96,11 +110,13 @@ def insert_memory(
                 """
                 INSERT INTO memories
                     (id, raw_text, embedding, embedding_model,
-                     content_hash, previous_hash, metadata)
-                VALUES (%s, %s, %s::vector, %s, %s, %s, %s)
+                     content_hash, previous_hash, signature, metadata)
+                VALUES (%s, %s, %s::vector, %s, %s, %s, %s, %s)
                 """,
                 (mem_id, raw_text, vec, embedding_model,
-                 content_hash, previous_hash, json.dumps(metadata)),
+                 content_hash, previous_hash,
+                 signature if signature else None,
+                 json.dumps(metadata)),
             )
     return mem_id
 
@@ -430,7 +446,8 @@ def export_memories(
             cur.execute(
                 f"""
                 SELECT id, raw_text, embedding, embedding_model,
-                       content_hash, previous_hash, metadata, created_at
+                       content_hash, previous_hash, signature,
+                       metadata, created_at
                 FROM memories
                 {where_sql}
                 ORDER BY created_at ASC
@@ -493,8 +510,9 @@ def import_memory(
                 """
                 INSERT INTO memories
                     (id, raw_text, embedding, embedding_model,
-                     content_hash, previous_hash, metadata, created_at)
-                VALUES (%s, %s, %s::vector, %s, %s, %s, %s, %s)
+                     content_hash, previous_hash, signature,
+                     metadata, created_at)
+                VALUES (%s, %s, %s::vector, %s, %s, %s, %s, %s, %s)
                 """,
                 (
                     mem_id,
@@ -503,6 +521,7 @@ def import_memory(
                     mem.get("embedding_model", config.EMBEDDING_MODEL_NAME),
                     content_hash,
                     mem.get("previous_hash"),
+                    mem.get("signature"),
                     json.dumps(mem.get("metadata", {})),
                     created_at,
                 ),
@@ -520,7 +539,7 @@ def get_all_for_verification() -> List[Dict[str, Any]]:
             cur.execute(
                 """
                 SELECT id, raw_text, content_hash, previous_hash,
-                       metadata, created_at
+                       signature, metadata, created_at
                 FROM memories
                 ORDER BY created_at ASC
                 """
