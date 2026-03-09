@@ -1,6 +1,6 @@
 # open_brain — Python Package
 
-Core package for Open Brain. PostgreSQL + pgvector semantic search, accessible via MCP server or CLI.
+Core package for Open Brain. Persistent, verifiable memory for AI agents — searchable by meaning, with built-in integrity verification and encrypted transport. Accessible via MCP server or CLI.
 
 ## Quick Start
 
@@ -65,13 +65,13 @@ python3 -m open_brain.cli verify               # Verify hash chain + signatures
 python3 -m open_brain.cli migrate              # Apply pending schema migrations
 ```
 
-- **Content hash**: SHA-256 of canonical `{raw_text, metadata}` JSON — detects any tampering
-- **Hash chain**: each memory links to its predecessor — detects reordering or deletion
-- **Ed25519 signing** (RFC 8032): cryptographic proof of origin per node — auto-signs when keypair exists, degrades gracefully when not
-- **AES-256-GCM encryption** (NIST SP 800-38D): passphrase-protected exports via Scrypt key derivation (RFC 7914)
+- **Content fingerprint**: every memory is hashed — if anything changes, the fingerprint won't match (SHA-256)
+- **Hash chain**: each memory links to the one before it — tampering, deletion, or reordering is detectable
+- **Cryptographic signing**: each machine can generate a keypair; when present, memories are signed automatically, proving which machine created them (Ed25519, RFC 8032 — same scheme as SSH and Signal)
+- **Encrypted export**: passphrase-protected exports for secure transport between machines (AES-256-GCM; Scrypt key derivation)
 - **Node identity**: stable per-machine identifier in every memory's metadata
 
-All primitives are platform-agnostic (macOS, Linux, Windows). No proprietary dependencies.
+All primitives are mathematical standards — platform-agnostic (macOS, Linux, Windows), non-proprietary.
 
 ## Database
 
