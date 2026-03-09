@@ -13,6 +13,8 @@ CREATE TABLE IF NOT EXISTS memories (
     raw_text        TEXT NOT NULL,
     embedding       vector(384) NOT NULL,
     embedding_model TEXT NOT NULL DEFAULT 'BAAI/bge-small-en-v1.5',
+    content_hash    TEXT,              -- SHA-256 of canonical {raw_text, metadata}
+    previous_hash   TEXT,              -- Hash chain link to predecessor
     metadata        JSONB NOT NULL DEFAULT '{}',
     created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
 );
@@ -42,6 +44,13 @@ CREATE INDEX IF NOT EXISTS idx_memories_area
 -- Temporal ordering
 CREATE INDEX IF NOT EXISTS idx_memories_created_at
     ON memories (created_at DESC);
+
+-- Hash chain integrity
+CREATE UNIQUE INDEX IF NOT EXISTS idx_memories_content_hash
+    ON memories (content_hash) WHERE content_hash IS NOT NULL;
+
+CREATE INDEX IF NOT EXISTS idx_memories_previous_hash
+    ON memories (previous_hash) WHERE previous_hash IS NOT NULL;
 
 -- -------------------------------------------------------------------
 -- Role grants (append-only: no DELETE)

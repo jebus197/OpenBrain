@@ -88,6 +88,7 @@ def capture_memory(
         "source_agent": source_agent,
         "memory_type": memory_type,
         "area": area,
+        "node_id": config.node_id(),
     }
     if action_status:
         metadata["action_status"] = action_status
@@ -101,7 +102,7 @@ def capture_memory(
     # Embed
     embedding = embed_text(cleaned)
 
-    # Store
+    # Store (content_hash and previous_hash computed by db.insert_memory)
     return db.insert_memory(
         raw_text=cleaned,
         embedding=embedding,

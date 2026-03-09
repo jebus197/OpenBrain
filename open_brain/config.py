@@ -9,8 +9,10 @@ Agent names are dynamic — defined per-project in projects.json.
 Areas have generic defaults but are fully configurable.
 """
 
+import hashlib
 import json
 import os
+import socket
 from pathlib import Path
 from typing import FrozenSet, Set
 
@@ -175,3 +177,19 @@ DEFAULT_AREAS = frozenset({
 VALID_AREAS = frozenset(
     _user_config.get("areas", DEFAULT_AREAS)
 )
+
+
+# ---------------------------------------------------------------------------
+# Node identity (for provenance tracking across machines)
+# ---------------------------------------------------------------------------
+
+
+def node_id() -> str:
+    """Generate a stable node identifier from the hostname.
+
+    Format: node-<12-char-hex> (SHA-256 of hostname, truncated).
+    Deterministic: same hostname always produces same node_id.
+    """
+    hostname = socket.gethostname()
+    short_hash = hashlib.sha256(hostname.encode()).hexdigest()[:12]
+    return f"node-{short_hash}"

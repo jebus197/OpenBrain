@@ -5,6 +5,7 @@ Run: python3 -m open_brain.cli <command> [options]
 
 import argparse
 import json
+import os
 import sys
 from datetime import datetime
 
@@ -68,6 +69,23 @@ def main(argv=None):
     p_ctx = sub.add_parser("session-context", help="Get startup context for an agent")
     p_ctx.add_argument("--agent", required=True, choices=config.get_valid_agents() or None)
 
+    # export
+    p_export = sub.add_parser("export", help="Export memories to JSONL file")
+    p_export.add_argument("output", help="Output file path (.jsonl)")
+    p_export.add_argument("--project", help="Filter by project")
+    p_export.add_argument("--since", help="Export memories created after this ISO date")
+
+    # import
+    p_import = sub.add_parser("import", help="Import memories from JSONL file")
+    p_import.add_argument("input", help="Input JSONL file path")
+
+    # verify
+    sub.add_parser("verify", help="Verify hash chain integrity")
+
+    # migrate
+    p_migrate = sub.add_parser("migrate", help="Run database migration")
+    p_migrate.add_argument("migration", help="Migration file path (.sql)")
+
     args = parser.parse_args(argv)
 
     try:
@@ -85,6 +103,14 @@ def main(argv=None):
             _cmd_update_task(args)
         elif args.command == "session-context":
             _cmd_session_context(args)
+        elif args.command == "export":
+            _cmd_export(args)
+        elif args.command == "import":
+            _cmd_import(args)
+        elif args.command == "verify":
+            _cmd_verify()
+        elif args.command == "migrate":
+            _cmd_migrate(args)
     except Exception as e:
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
@@ -218,6 +244,91 @@ def _cmd_session_context(args):
         print(f"  {ctx['last_session_summary']['raw_text'][:300]}")
     else:
         print("  (none)")
+
+
+def _cmd_export(args):
+    memories = db.export_memories(
+        project=args.project,
+        since=args.since,
+    )
+    if not memories:
+        print("No memories to export.")
+        return
+
+    with open(args.output, "w", encoding="utf-8") as f:
+        for mem in memories:
+            f.write(json.dumps(mem, separators=(",", ":")) + "\n")
+
+    print(f"Exported {len(memories)} memories to {args.output}")
+    latest_hash = memories[-1].get("content_hash")
+    if latest_hash:
+        print(f"  Chain head: {latest_hash}")
+
+
+def _cmd_import(args):
+    if not os.path.isfile(args.input):
+        print(f"File not found: {args.input}", file=sys.stderr)
+        sys.exit(1)
+
+    counts = {"inserted": 0, "skipped": 0, "conflict": 0}
+
+    with open(args.input, "r", encoding="utf-8") as f:
+        for line_no, line in enumerate(f, 1):
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                mem = json.loads(line)
+            except json.JSONDecodeError as e:
+                print(f"  Line {line_no}: invalid JSON — {e}", file=sys.stderr)
+                continue
+
+            result = db.import_memory(mem)
+            counts[result] += 1
+
+    total = counts["inserted"] + counts["skipped"] + counts["conflict"]
+    print(f"Import complete: {total} memories processed")
+    print(f"  Inserted: {counts['inserted']}")
+    print(f"  Skipped (already exist): {counts['skipped']}")
+    if counts["conflict"]:
+        print(f"  Conflicts (same UUID, different hash): {counts['conflict']}")
+
+
+def _cmd_verify():
+    from open_brain.hashing import verify_chain
+
+    memories = db.get_all_for_verification()
+    result = verify_chain(memories)
+
+    print(f"Hash chain verification: {result['total']} memories")
+    print(f"  Valid: {result['valid']}")
+    print(f"  Unhashed (pre-migration): {result['unhashed']}")
+
+    if result["broken_content"]:
+        print(f"  BROKEN content hashes: {len(result['broken_content'])}")
+        for b in result["broken_content"][:5]:
+            print(f"    {b['id']}: expected {b['expected'][:20]}... got {b['actual'][:20]}...")
+    if result["broken_chain"]:
+        print(f"  BROKEN chain links: {len(result['broken_chain'])}")
+        for b in result["broken_chain"][:5]:
+            print(f"    {b['id']}: expected prev {b['expected_prev'][:20]}... got {b['actual_prev'][:20] if b['actual_prev'] else 'None'}...")
+
+    if not result["broken_content"] and not result["broken_chain"]:
+        print("  Chain integrity: OK")
+    else:
+        sys.exit(1)
+
+
+def _cmd_migrate(args):
+    if not os.path.isfile(args.migration):
+        print(f"File not found: {args.migration}", file=sys.stderr)
+        sys.exit(1)
+
+    with open(args.migration, "r", encoding="utf-8") as f:
+        sql = f.read()
+
+    db.run_migration(sql)
+    print(f"Migration applied: {args.migration}")
 
 
 # ---------------------------------------------------------------------------

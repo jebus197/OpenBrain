@@ -59,21 +59,48 @@ def insert_memory(
     embedding: list,
     metadata: Dict[str, Any],
     embedding_model: str = config.EMBEDDING_MODEL_NAME,
+    content_hash: Optional[str] = None,
+    previous_hash: Optional[str] = None,
 ) -> str:
-    """Insert a memory and return its UUID as a string."""
+    """Insert a memory with hash chain linking. Returns UUID.
+
+    If content_hash is None, it is computed from raw_text + metadata.
+    If previous_hash is None, it is fetched from the most recent memory
+    within the same transaction (or GENESIS_HASH if the chain is empty).
+    """
     import numpy as np
+    from open_brain.hashing import compute_content_hash, GENESIS_HASH
 
     vec = np.array(embedding, dtype=np.float32)
     mem_id = str(uuid.uuid4())
 
+    if content_hash is None:
+        content_hash = compute_content_hash(raw_text, metadata)
+
     with write_conn() as conn:
         with conn.cursor() as cur:
+            # Fetch previous hash in the same transaction for chain integrity
+            if previous_hash is None:
+                cur.execute(
+                    """
+                    SELECT content_hash FROM memories
+                    WHERE content_hash IS NOT NULL
+                    ORDER BY created_at DESC
+                    LIMIT 1
+                    """
+                )
+                row = cur.fetchone()
+                previous_hash = row[0] if row else GENESIS_HASH
+
             cur.execute(
                 """
-                INSERT INTO memories (id, raw_text, embedding, embedding_model, metadata)
-                VALUES (%s, %s, %s::vector, %s, %s)
+                INSERT INTO memories
+                    (id, raw_text, embedding, embedding_model,
+                     content_hash, previous_hash, metadata)
+                VALUES (%s, %s, %s::vector, %s, %s, %s, %s)
                 """,
-                (mem_id, raw_text, vec, embedding_model, json.dumps(metadata)),
+                (mem_id, raw_text, vec, embedding_model,
+                 content_hash, previous_hash, json.dumps(metadata)),
             )
     return mem_id
 
@@ -349,6 +376,171 @@ def verify_connection() -> bool:
         return False
 
 
+def memory_count() -> int:
+    """Return total number of memories in the database."""
+    with read_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT count(*) FROM memories")
+            return cur.fetchone()[0]
+
+
+def get_latest_content_hash() -> Optional[str]:
+    """Return the content_hash of the most recent hashed memory, or None."""
+    with read_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT content_hash FROM memories
+                WHERE content_hash IS NOT NULL
+                ORDER BY created_at DESC
+                LIMIT 1
+                """
+            )
+            row = cur.fetchone()
+            return row[0] if row else None
+
+
+# ---------------------------------------------------------------------------
+# Export / Import
+# ---------------------------------------------------------------------------
+
+
+def export_memories(
+    project: Optional[str] = None,
+    since: Optional[str] = None,
+) -> List[Dict[str, Any]]:
+    """Export memories as list of dicts including embedding vectors.
+
+    Ordered by created_at ASC (chronological) for hash chain consistency.
+    """
+    conditions: list = []
+    params: list = []
+
+    if project:
+        conditions.append("metadata->>'project' = %s")
+        params.append(project)
+    if since:
+        conditions.append("created_at >= %s")
+        params.append(since)
+
+    where_sql = ("WHERE " + " AND ".join(conditions)) if conditions else ""
+
+    with read_conn() as conn:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(
+                f"""
+                SELECT id, raw_text, embedding, embedding_model,
+                       content_hash, previous_hash, metadata, created_at
+                FROM memories
+                {where_sql}
+                ORDER BY created_at ASC
+                """,
+                params,
+            )
+            rows = cur.fetchall()
+
+    return [_export_row_to_dict(r) for r in rows]
+
+
+def import_memory(
+    mem: Dict[str, Any],
+) -> str:
+    """Import a single memory via upsert.
+
+    Returns:
+        'inserted' — new memory added
+        'skipped'  — already exists with matching content_hash
+        'conflict' — same UUID, different content_hash
+    """
+    import numpy as np
+
+    mem_id = mem["id"]
+    content_hash = mem.get("content_hash")
+
+    with write_conn() as conn:
+        with conn.cursor() as cur:
+            # Check if already exists
+            cur.execute(
+                "SELECT content_hash FROM memories WHERE id = %s",
+                (mem_id,),
+            )
+            existing = cur.fetchone()
+
+            if existing:
+                existing_hash = existing[0]
+                if existing_hash == content_hash:
+                    return "skipped"
+                elif existing_hash is None and content_hash is not None:
+                    # Existing memory was pre-migration (no hash). Update it.
+                    vec = np.array(mem["embedding"], dtype=np.float32)
+                    cur.execute(
+                        """
+                        UPDATE memories
+                        SET content_hash = %s,
+                            previous_hash = %s
+                        WHERE id = %s
+                        """,
+                        (content_hash, mem.get("previous_hash"), mem_id),
+                    )
+                    return "inserted"
+                else:
+                    return "conflict"
+
+            # New memory — insert
+            vec = np.array(mem["embedding"], dtype=np.float32)
+            created_at = mem.get("created_at")
+            cur.execute(
+                """
+                INSERT INTO memories
+                    (id, raw_text, embedding, embedding_model,
+                     content_hash, previous_hash, metadata, created_at)
+                VALUES (%s, %s, %s::vector, %s, %s, %s, %s, %s)
+                """,
+                (
+                    mem_id,
+                    mem["raw_text"],
+                    vec,
+                    mem.get("embedding_model", config.EMBEDDING_MODEL_NAME),
+                    content_hash,
+                    mem.get("previous_hash"),
+                    json.dumps(mem.get("metadata", {})),
+                    created_at,
+                ),
+            )
+            return "inserted"
+
+
+def get_all_for_verification() -> List[Dict[str, Any]]:
+    """Get all memories ordered chronologically for hash chain verification.
+
+    Returns lightweight dicts (no embedding) for verification purposes.
+    """
+    with read_conn() as conn:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(
+                """
+                SELECT id, raw_text, content_hash, previous_hash,
+                       metadata, created_at
+                FROM memories
+                ORDER BY created_at ASC
+                """
+            )
+            rows = cur.fetchall()
+
+    return [_row_to_dict(r) for r in rows]
+
+
+def run_migration(migration_sql: str) -> None:
+    """Execute a migration SQL string using the admin connection."""
+    conn = psycopg2.connect(config.dsn("admin"))
+    conn.autocommit = True
+    try:
+        with conn.cursor() as cur:
+            cur.execute(migration_sql)
+    finally:
+        conn.close()
+
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -364,4 +556,17 @@ def _row_to_dict(row) -> Dict[str, Any]:
     if "distance" in d:
         d["distance"] = float(d["distance"])
     # metadata is already a dict from JSONB
+    return d
+
+
+def _export_row_to_dict(row) -> Dict[str, Any]:
+    """Convert a RealDictRow to an export-ready dict (includes embedding).
+
+    The embedding is converted from a pgvector/numpy type to a plain
+    list of floats for JSON serialisation in JSONL export files.
+    """
+    d = _row_to_dict(row)
+    if "embedding" in d and d["embedding"] is not None:
+        # pgvector returns numpy array; convert to plain list of floats
+        d["embedding"] = [float(x) for x in d["embedding"]]
     return d
