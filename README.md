@@ -28,6 +28,14 @@ Open Brain is one component of a structured approach to human-AI collaboration. 
 
 Together, these compensate for the three weaknesses described above. The `templates/` directory contains example configurations for all three elements: `CLAUDE.md.example` (agent directives), `MEMORY.md.example` (project-level persistent context), `RECOVERY.md.example` (session recovery protocol), and `SHORTCUTS.md` (shell aliases). These are opt-in — Open Brain works without them, but no single component addresses all three weaknesses. Memory alone doesn't fix uncritical compliance; directives alone don't survive context loss; coordination alone doesn't fix either. The combination is designed to cover all three, and the claim is falsifiable: adopt it, measure whether your outcomes change, discard what doesn't work.
 
+### Design Principle
+
+The system is built on a single foundational axiom: **all truth should be anchored and independently verifiable.**
+
+This applies at every layer. At the reasoning level, agent directives enforce Popperian falsification — claims must survive deliberate attempts to disprove them. At the data level, the integrity layer enforces the same principle mechanically: every memory is fingerprinted (content hash), chained to its predecessor (hash chain), and optionally signed by the machine that created it (cryptographic signature). The result is a memory store where tampering, reordering, or impersonation is detectable by anyone with access — not by trusting the system, but by independently verifying the mathematics. Exports can be encrypted for secure transport between machines.
+
+None of these primitives are novel — content hashing follows the same pattern as Git and Certificate Transparency; the signing scheme (Ed25519) is the same one used by SSH and Signal; the encryption (AES-256-GCM) is the worldwide standard for authenticated encryption. The contribution is the combination and application: a shared AI memory that is not merely persistent but evidentially trustworthy.
+
 ## Getting Started
 
 ### macOS / Linux
@@ -100,11 +108,11 @@ The embedding model (BAAI/bge-small-en-v1.5, ~130 MB) downloads automatically on
 - **Session context** — agents get pending tasks, blocked items, and recent activity from other agents on startup
 - **Three access methods** — MCP server (for Claude Code and compatible agents), CLI (for everything), file bridge (for sandboxed agents)
 - **IM service** — lightweight inter-agent messaging with rolling buffer (20 messages per stream, file-locked)
-- **Content integrity** — every memory gets a SHA-256 hash of its canonical content; an append-only hash chain links each memory to its predecessor, making tampering or reordering detectable (same pattern as Git, Certificate Transparency, and append-only ledgers)
-- **Cryptographic signing** — optional Ed25519 keypair per node (RFC 8032); when present, memories are auto-signed on storage, providing verifiable proof of origin beyond a claimed node ID
-- **Encrypted export** — JSONL exports can be AES-256-GCM encrypted (NIST SP 800-38D) with a passphrase-derived key via Scrypt (RFC 7914) for secure transport between machines
-- **Portable export/import** — JSONL format with full hash chain and signature preservation; verify integrity after import with a single command
-- **Node identity** — each machine gets a stable, deterministic identifier derived from its hostname; embedded in every memory's metadata
+- **Content integrity** — every memory is fingerprinted and chained to the one before it, so any tampering, deletion, or reordering is detectable. Uses the same content-addressing pattern as Git and Certificate Transparency (SHA-256 hash chain)
+- **Cryptographic signing** — each machine can generate a keypair; when present, memories are automatically signed on storage, proving which machine created them — not just a claimed name, but a mathematically verifiable assertion (Ed25519, RFC 8032 — the same scheme used by SSH and Signal)
+- **Encrypted export** — memory exports can be passphrase-protected for secure transport between machines. The passphrase is converted to an encryption key using a deliberately slow process that resists automated guessing (AES-256-GCM encryption, NIST SP 800-38D; Scrypt key derivation, RFC 7914)
+- **Portable export/import** — one memory per line, human-readable format (JSONL); fingerprints and signatures travel with the data; verify everything after import with a single command
+- **Node identity** — each machine gets a stable identifier derived from its hostname, embedded in every memory's metadata — so you can always tell where a memory originated
 - **Input sanitisation** — prompt-injection pattern detection before storage
 - **Role-separated database access** — reader/writer roles enforce least privilege
 - **Cross-platform** — macOS, Linux, and Windows; all cryptographic primitives are platform-agnostic mathematical standards (no OS-specific dependencies)
@@ -358,7 +366,7 @@ CREATE TABLE memories (
 
 Metadata is flexible JSONB: `source_agent`, `memory_type`, `area`, `action_status`, `assigned_to`, `priority`, `node_id`, plus anything else you need. Indexed with GIN for fast filtering.
 
-**Integrity model:** `content_hash` is the SHA-256 of the canonical JSON form `{"metadata": ..., "raw_text": ...}` (sorted keys, compact separators). `previous_hash` chains each memory to its predecessor (first memory uses `"sha256:genesis"`). `signature` is the Ed25519 signature over the same canonical JSON, present when the storing node has a keypair. All three columns are nullable for backward compatibility — pre-existing memories without hashes or signatures remain valid.
+**Integrity model:** `content_hash` is a fingerprint of the memory's content — if anything changes, the fingerprint won't match. `previous_hash` chains each memory to the one before it, so the entire sequence is tamper-evident (the first memory uses a fixed starting value). `signature` is the cryptographic proof that a specific machine's keypair produced this content. All three columns are optional — memories created before these features were added remain valid, they just lack verification data.
 
 ### Testing
 
