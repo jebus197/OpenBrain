@@ -65,6 +65,11 @@ class MessageType(str, Enum):
     QUERY_REQUEST = "query.request"
     QUERY_RESPONSE = "query.response"
 
+    # --- Governance (project-specific ballot/amendment carriers) ---
+    GOVERNANCE_BALLOT = "governance.ballot"
+    REVIEW_DECISION = "review.decision"
+    TRUST_DELTA = "trust.delta"
+
     # --- Coordination primitives ---
     CAPABILITY_ANNOUNCE = "coord.capability"
     WORK_OFFER = "coord.work_offer"
