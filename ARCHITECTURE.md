@@ -247,7 +247,7 @@ This is stated intent and long-term architectural direction, not a current imple
 
 ## P-Pass on the Architecture
 
-The architecture itself is subjected to the same falsification methodology that governs the project. The following falsification attempts have been assessed:
+The architecture itself is subjected to the same falsification methodology that governs the project (see [METHODOLOGY.md](METHODOLOGY.md) for the general protocol, a reproducible evaluation framework, and the epistemological commitments underpinning these tests). Each claim below is stated precisely, a falsification path is identified, and the outcome is recorded with boundary conditions. The following falsification attempts have been assessed:
 
 **1. Embedding model changes break compatibility.**
 The format includes the `embedding_model` field. Import detects mismatches between source and destination models. Re-embedding is lazy and preserves the original vector. The format is self-describing — it carries its own model identifier. **Survives.**
@@ -285,5 +285,6 @@ The honest framing: Open Brain provides the memory substrate. Genesis provides t
 ## Further Reading
 
 - [README](README.md) — what Open Brain does and how to install it
+- [METHODOLOGY.md](METHODOLOGY.md) — epistemological methodology and evaluation protocol
 - [open_brain/README.md](open_brain/README.md) — package-level reference
 - [templates/SHORTCUTS.md](templates/SHORTCUTS.md) — shell aliases and common workflows

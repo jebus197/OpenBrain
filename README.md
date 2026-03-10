@@ -36,7 +36,7 @@ The system is built on a single foundational axiom: **all truth should be anchor
 
 This applies at every layer. At the reasoning level, agent directives enforce Popperian falsification — claims must survive deliberate attempts to disprove them. At the data level, the integrity layer enforces the same principle mechanically: every memory is fingerprinted (content hash), chained to its predecessor (hash chain), and optionally signed by the machine that created it (cryptographic signature). The result is a memory store where tampering, reordering, or impersonation is detectable by anyone with access — not by trusting the system, but by independently verifying the mathematics. Exports can be encrypted for secure transport between machines.
 
-None of these primitives are novel — content hashing follows the same pattern as Git and Certificate Transparency; the signing scheme (Ed25519) is the same one used by SSH and Signal; the encryption (AES-256-GCM) is the worldwide standard for authenticated encryption. The contribution is the combination and application: a shared AI memory that is not merely persistent but evidentially trustworthy.
+None of these primitives are novel — content hashing follows the same pattern as Git and Certificate Transparency; the signing scheme (Ed25519) is the same one used by SSH and Signal; the encryption (AES-256-GCM) is the worldwide standard for authenticated encryption. The contribution is the combination and application: a shared AI memory that is not merely persistent but evidentially trustworthy. For a full treatment of the falsification methodology and a reproducible evaluation protocol, see [METHODOLOGY.md](METHODOLOGY.md).
 
 ## Getting Started
 
@@ -470,6 +470,7 @@ OpenBrain/
 ├── systemd/               # Linux daemon config
 ├── pyproject.toml         # Package metadata
 ├── ARCHITECTURE.md        # Scale architecture (Scales 0–5) and design rationale
+├── METHODOLOGY.md         # Epistemological methodology and evaluation protocol
 ├── LICENSE                # MIT
 └── README.md              # This file
 ```
