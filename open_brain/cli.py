@@ -113,6 +113,18 @@ def main(argv=None):
     p_genkeys.add_argument("--force", action="store_true",
                            help="Regenerate even if keys exist (invalidates signatures)")
 
+    # im — delegates to open_brain.im.service
+    p_im = sub.add_parser("im", help="IM service (SQLite WAL-mode messaging)")
+    p_im.add_argument("im_args", nargs=argparse.REMAINDER,
+                       help="Arguments passed to IM service")
+
+    # Intercept 'im' before full parse — it delegates to its own parser.
+    effective_argv = argv if argv is not None else sys.argv[1:]
+    if effective_argv and effective_argv[0] == "im":
+        from open_brain.im.service import main as im_main
+        im_main(effective_argv[1:])
+        return
+
     args = parser.parse_args(argv)
 
     try:
