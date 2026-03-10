@@ -14,6 +14,8 @@ bus integration) live in service.py and the api/ package.
 
 import hashlib
 import json
+import logging
+import re
 import sqlite3
 import uuid
 from contextlib import contextmanager
@@ -21,6 +23,8 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -148,6 +152,8 @@ class IMStore:
     # Channel management
     # ------------------------------------------------------------------
 
+    _CHANNEL_ID_RE = re.compile(r"^[a-zA-Z0-9_-]{1,64}$")
+
     def create_channel(
         self,
         channel_id: str,
@@ -155,7 +161,17 @@ class IMStore:
         *,
         metadata: Optional[Dict[str, Any]] = None,
     ) -> None:
-        """Create a channel. Idempotent — ignores if already exists."""
+        """Create a channel. Idempotent — ignores if already exists.
+
+        Raises:
+            ValueError: If channel_id is empty or contains invalid characters.
+                        Valid: alphanumeric, hyphens, underscores, max 64 chars.
+        """
+        if not self._CHANNEL_ID_RE.match(channel_id):
+            raise ValueError(
+                f"Invalid channel_id {channel_id!r} — must be 1-64 chars, "
+                "alphanumeric, hyphens, or underscores only."
+            )
         meta_json = json.dumps(metadata or {}, sort_keys=True)
         with self._conn() as conn:
             conn.execute(
@@ -232,10 +248,14 @@ class IMStore:
 
         signature = None
         if sign_fn is not None:
-            # Sign the content_hash bytes (not the hex string) — matches
-            # the convention in crypto.py where Ed25519 signs the canonical
-            # content, and we return the hex of the signature.
-            signature = sign_fn(content_hash)
+            # Sign the content_hash hex string — sign_fn receives a
+            # "sha256:<hex>" string and returns a hex-encoded signature.
+            # Matches the convention in service.py _load_sign_fn().
+            try:
+                signature = sign_fn(content_hash)
+            except Exception:
+                logger.warning("sign_fn failed — message will be unsigned")
+                signature = None
 
         expires_at = None
         if ttl_days is not None and ttl_days > 0:
@@ -409,15 +429,23 @@ class IMStore:
             limit: Max results.
 
         Returns: Messages ordered by relevance (rank).
+                 Empty list if query is malformed (FTS5 parse error).
         """
-        with self._conn(readonly=True) as conn:
-            rows = conn.execute(
-                "SELECT m.* FROM messages m "
-                "JOIN messages_fts f ON m.rowid = f.rowid "
-                "WHERE messages_fts MATCH ? "
-                "ORDER BY f.rank LIMIT ?",
-                (query, limit),
-            ).fetchall()
+        if not query or not query.strip():
+            return []
+
+        try:
+            with self._conn(readonly=True) as conn:
+                rows = conn.execute(
+                    "SELECT m.* FROM messages m "
+                    "JOIN messages_fts f ON m.rowid = f.rowid "
+                    "WHERE messages_fts MATCH ? "
+                    "ORDER BY f.rank LIMIT ?",
+                    (query, limit),
+                ).fetchall()
+        except sqlite3.OperationalError:
+            logger.warning("FTS5 query parse error for: %r", query)
+            return []
 
         return [self._row_to_message(r) for r in rows]
 

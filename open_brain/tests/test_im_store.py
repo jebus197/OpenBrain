@@ -636,3 +636,84 @@ class TestConcurrency:
         t_read.join(timeout=10)
 
         assert not errors, f"Concurrent read/write failed: {errors}"
+
+
+# ---------------------------------------------------------------------------
+# P-Pass hardening tests
+# ---------------------------------------------------------------------------
+
+
+class TestFTS5ErrorHandling:
+    """FTS5 search must not raise on malformed queries."""
+
+    def test_malformed_fts_query_returns_empty(self, store: IMStore) -> None:
+        store.post("cc", "tester", "some content")
+        # "AND OR" is invalid FTS5 syntax
+        results = store.search("AND OR")
+        assert results == []
+
+    def test_empty_query_returns_empty(self, store: IMStore) -> None:
+        store.post("cc", "tester", "some content")
+        results = store.search("")
+        assert results == []
+
+    def test_whitespace_query_returns_empty(self, store: IMStore) -> None:
+        store.post("cc", "tester", "some content")
+        results = store.search("   ")
+        assert results == []
+
+    def test_valid_fts_query_still_works(self, store: IMStore) -> None:
+        store.post("cc", "tester", "important insight about trust")
+        results = store.search("trust")
+        assert len(results) == 1
+        assert "trust" in results[0].content
+
+
+class TestChannelIDValidation:
+    """Channel IDs must be alphanumeric + hyphens/underscores, max 64 chars."""
+
+    def test_valid_channel_ids(self, store: IMStore) -> None:
+        for ch_id in ["cc", "cx", "system", "my-channel", "test_123", "A"]:
+            store.create_channel(ch_id, f"Channel {ch_id}")
+        channels = store.list_channels()
+        assert len(channels) == 6
+
+    def test_rejects_empty_channel_id(self, store: IMStore) -> None:
+        with pytest.raises(ValueError, match="Invalid channel_id"):
+            store.create_channel("", "Empty")
+
+    def test_rejects_spaces_in_channel_id(self, store: IMStore) -> None:
+        with pytest.raises(ValueError, match="Invalid channel_id"):
+            store.create_channel("bad channel", "Bad")
+
+    def test_rejects_special_chars(self, store: IMStore) -> None:
+        with pytest.raises(ValueError, match="Invalid channel_id"):
+            store.create_channel("ch@nnel!", "Bad")
+
+    def test_rejects_too_long_channel_id(self, store: IMStore) -> None:
+        with pytest.raises(ValueError, match="Invalid channel_id"):
+            store.create_channel("a" * 65, "Too long")
+
+    def test_auto_create_on_post_bypasses_validation(self, store: IMStore) -> None:
+        # _ensure_channel auto-creates — this tests that valid IDs still work via post
+        msg = store.post("valid-ch", "sender", "content")
+        assert msg.channel_id == "valid-ch"
+
+
+class TestSignFnFailureHandling:
+    """sign_fn failure should produce unsigned message, not raise."""
+
+    def test_sign_fn_exception_produces_unsigned_message(self, store: IMStore) -> None:
+        def bad_sign_fn(content_hash: str) -> str:
+            raise RuntimeError("Key not available")
+
+        msg = store.post("cc", "tester", "content", sign_fn=bad_sign_fn)
+        assert msg.signature is None
+        assert msg.content_hash.startswith("sha256:")
+
+    def test_sign_fn_success_produces_signed_message(self, store: IMStore) -> None:
+        def good_sign_fn(content_hash: str) -> str:
+            return "deadbeef" * 16
+
+        msg = store.post("cc", "tester", "content", sign_fn=good_sign_fn)
+        assert msg.signature == "deadbeef" * 16

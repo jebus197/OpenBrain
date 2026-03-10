@@ -145,6 +145,17 @@ class TestIMIntegration:
         assert count == 1
         assert len(ob.im.read("test")) == 0
 
+    def test_create_channel_with_metadata(self, ob: OpenBrain) -> None:
+        ob.im.create_channel(
+            "meta-ch",
+            "Meta Channel",
+            metadata={"priority": "high", "area": "ops"},
+        )
+        channels = ob.im.channels()
+        ch = next(c for c in channels if c["channel_id"] == "meta-ch")
+        assert ch["metadata"]["priority"] == "high"
+        assert ch["metadata"]["area"] == "ops"
+
     def test_store_property(self, ob: OpenBrain) -> None:
         assert isinstance(ob.im.store, IMStore)
 

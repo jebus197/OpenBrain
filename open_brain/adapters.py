@@ -32,7 +32,7 @@ class EventAdapter(Protocol):
 
     Required payload fields:
       - ``event_kind``: str — project-specific event type
-      - ``event_hash``: str — ``sha256:<hex>`` content hash
+      - ``event_hash``: str — content integrity hash (e.g. ``sha256:<hex>``)
       - ``source_project``: str — project identifier
     """
 
@@ -58,7 +58,7 @@ class InsightAdapter(Protocol):
       - ``signal_id``: str
       - ``signal_type``: str
       - ``confidence``: float (0.0–1.0)
-      - ``provenance_hash``: str — ``sha256:<hex>``
+      - ``provenance_hash``: str — content integrity hash (e.g. ``sha256:<hex>``)
       - ``source_project``: str
     """
 
@@ -81,7 +81,7 @@ class ThreatAdapter(Protocol):
       - ``signal_id``: str
       - ``threat_type``: str
       - ``severity``: str
-      - ``evidence_hash``: str — ``sha256:<hex>``
+      - ``evidence_hash``: str — content integrity hash (e.g. ``sha256:<hex>``)
       - ``affected_actors``: List[str]
       - ``source_project``: str
     """

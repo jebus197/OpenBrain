@@ -103,9 +103,10 @@ class IMFacade:
         self,
         channel_id: str,
         display_name: str,
-        **metadata: Any,
+        *,
+        metadata: Optional[Dict[str, Any]] = None,
     ) -> None:
-        self._store.create_channel(channel_id, display_name, **metadata)
+        self._store.create_channel(channel_id, display_name, metadata=metadata)
 
     def clear(self, channel: str) -> int:
         return self._store.clear_channel(channel)
