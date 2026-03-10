@@ -1,5 +1,7 @@
 """Tests for config module."""
 
+from unittest import mock
+
 from open_brain import config
 
 
@@ -19,15 +21,30 @@ def test_estimate_tokens():
     assert config.estimate_tokens("one two three four five") == 6  # 5 * 1.3 = 6.5 -> 6
 
 
-def test_agent_validation():
-    # Dynamic agents: get_valid_agents returns list (may be empty if no projects registered)
+def test_agent_validation_open_mode():
+    """When no agents are registered, any sane identifier is accepted."""
+    with mock.patch.object(config, "REGISTERED_AGENTS", frozenset()):
+        assert config.is_valid_agent("myagent")
+        assert config.is_valid_agent("agent-1")
+        assert not config.is_valid_agent("")
+        assert not config.is_valid_agent("a" * 31)  # too long
+
+
+def test_agent_validation_closed_mode():
+    """When agents are registered, only those names are valid."""
+    with mock.patch.object(config, "REGISTERED_AGENTS", frozenset({"cc", "cx"})):
+        assert config.is_valid_agent("cc")
+        assert config.is_valid_agent("cx")
+        assert not config.is_valid_agent("myagent")
+        assert not config.is_valid_agent("")
+
+
+def test_get_valid_agents():
     agents = config.get_valid_agents()
     assert isinstance(agents, list)
-    # is_valid_agent accepts reasonable strings in open mode
-    assert config.is_valid_agent("myagent")
-    assert config.is_valid_agent("agent-1")
-    assert not config.is_valid_agent("")
-    assert not config.is_valid_agent("a" * 31)  # too long
+    # If registered, should be sorted
+    if agents:
+        assert agents == sorted(agents)
 
 
 def test_embedding_dimension():
