@@ -45,6 +45,7 @@ def main(argv=None):
     p_search.add_argument("--agent", dest="source_agent")
     p_search.add_argument("--type", dest="memory_type")
     p_search.add_argument("--area")
+    p_search.add_argument("--project", help="Filter by project name")
 
     # list-recent
     p_recent = sub.add_parser("list-recent", help="List recent memories")
@@ -52,6 +53,7 @@ def main(argv=None):
     p_recent.add_argument("--agent", dest="source_agent")
     p_recent.add_argument("--type", dest="memory_type")
     p_recent.add_argument("--area")
+    p_recent.add_argument("--project", help="Filter by project name")
 
     # pending-tasks
     p_pending = sub.add_parser("pending-tasks", help="Get pending/blocked tasks")
@@ -82,9 +84,24 @@ def main(argv=None):
     p_import.add_argument("input", help="Input JSONL file path")
     p_import.add_argument("--decrypt", metavar="PASSPHRASE",
                           help="Decrypt the file before importing (AES-256-GCM)")
+    p_import.add_argument("--source-node",
+                          help="Source node ID for provenance tracking")
 
     # verify
     sub.add_parser("verify", help="Verify hash chain integrity and signatures")
+
+    # seal-epoch
+    p_seal = sub.add_parser("seal-epoch",
+                            help="Seal the most recent completed epoch")
+    p_seal.add_argument("--window-s", type=int, default=None,
+                        help="Epoch window size in seconds (default: 3600)")
+
+    # list-epochs
+    p_epochs = sub.add_parser("list-epochs", help="List sealed epochs")
+    p_epochs.add_argument("--limit", type=int, default=20)
+
+    # verify-epochs
+    sub.add_parser("verify-epochs", help="Verify epoch chain integrity")
 
     # migrate
     p_migrate = sub.add_parser("migrate", help="Run database migration")
@@ -123,6 +140,12 @@ def main(argv=None):
             _cmd_migrate(args)
         elif args.command == "generate-keys":
             _cmd_generate_keys(args)
+        elif args.command == "seal-epoch":
+            _cmd_seal_epoch(args)
+        elif args.command == "list-epochs":
+            _cmd_list_epochs(args)
+        elif args.command == "verify-epochs":
+            _cmd_verify_epochs()
     except Exception as e:
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
@@ -167,6 +190,7 @@ def _cmd_search(args):
         source_agent=args.source_agent,
         memory_type=args.memory_type,
         area=args.area,
+        project=args.project,
     )
     if not results:
         print("No results.")
@@ -180,6 +204,7 @@ def _cmd_list_recent(args):
         source_agent=args.source_agent,
         memory_type=args.memory_type,
         area=args.area,
+        project=args.project,
     )
     if not results:
         print("No memories found.")
@@ -327,7 +352,7 @@ def _cmd_import(args):
             print(f"  Line {line_no}: invalid JSON — {e}", file=sys.stderr)
             continue
 
-        result = db.import_memory(mem)
+        result = db.import_memory(mem, source_node=args.source_node)
         counts[result] += 1
 
     total = counts["inserted"] + counts["skipped"] + counts["conflict"]
@@ -444,6 +469,55 @@ def _print_results(results, show_distance=False):
         print(f"   {_truncate(r['raw_text'], 200)}")
         print(f"   ID: {r['id']}")
         print()
+
+
+def _cmd_seal_epoch(args):
+    from open_brain.epoch import seal_epoch, EPOCH_WINDOW_S
+
+    window_s = args.window_s or EPOCH_WINDOW_S
+    record = seal_epoch(window_s=window_s)
+
+    if record is None:
+        print("No epoch to seal (empty window or already sealed).")
+        return
+
+    print(f"Epoch sealed: {record.window_start} → {record.window_end}")
+    print(f"  Merkle root: {record.merkle_root}")
+    print(f"  Memories: {record.memory_count}")
+    print(f"  Sealed by: {record.sealed_by}")
+
+
+def _cmd_list_epochs(args):
+    from open_brain.epoch import list_epochs
+
+    epochs = list_epochs(limit=args.limit)
+    if not epochs:
+        print("No sealed epochs.")
+        return
+
+    for e in epochs:
+        print(f"{e['window_start']} → {e['window_end']}")
+        print(f"  Root: {e['merkle_root']}")
+        print(f"  Memories: {e['memory_count']}")
+        print(f"  Sealed: {e['sealed_at']} by {e['sealed_by']}")
+        print()
+
+
+def _cmd_verify_epochs():
+    from open_brain.epoch import verify_epoch_chain
+
+    result = verify_epoch_chain()
+    print(f"Epoch chain verification: {result['total']} epochs")
+    print(f"  Valid: {result['valid']}")
+
+    if result["broken"]:
+        print(f"  BROKEN links: {len(result['broken'])}")
+        for b in result["broken"][:5]:
+            print(f"    {b['epoch_id']}: expected {b['expected'][:30]}... "
+                  f"got {b['actual'][:30]}...")
+        sys.exit(1)
+    else:
+        print("  Chain integrity: OK")
 
 
 def _truncate(text, max_len):

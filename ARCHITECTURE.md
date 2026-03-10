@@ -71,7 +71,7 @@ The foundational axiom — all truth should be anchored and independently verifi
 | **Content hash** | Tampering detectable locally. Any change to content is caught by recomputing the hash. | All scales (Scale 0+) |
 | **Hash chain** | Deletion and reordering detectable. Each memory links to its predecessor. Breaking the chain requires forging a hash. | All scales (Scale 0+) |
 | **Cryptographic signature** | Origin provenance. The machine that created the memory can be verified mathematically, not just by a claimed name. | Scale 1+ (requires keypair) |
-| **Epoch Merkle tree** | Batch verification. Thousands of memory hashes are combined into a single root hash per time period (epoch). | Scale 4+ (designed, not yet implemented) |
+| **Epoch Merkle tree** | Batch verification. Thousands of memory hashes are combined into a single root hash per time period (epoch). | Scale 1+ (BUILT — `open_brain/merkle.py`, `open_brain/epoch.py`) |
 | **On-chain anchor** | Externally verifiable proof. The Merkle root is stored in a blockchain transaction. Anyone can verify, without data access. | Scale 4+ (designed, not yet implemented) |
 | **Trust-weighted provenance** | Source credibility assessment. Who created this memory? What is their earned trust score? | Scale 4+ (requires trust engine) |
 | **Constitutional governance** | Sharing and privacy rules. What can be shared, with whom, under what conditions — enforced structurally, not by policy. | Scale 4+ (requires governance framework) |
@@ -122,11 +122,11 @@ This is sequential use only — one machine at a time, with explicit export/impo
 
 ### Scale 3 — Multiple Projects
 
-**Status: DESIGNED**
+**Status: BUILT**
 
 Insights from one project should be discoverable from another.
 
-The `project` field in metadata enables filtering. Export and import support project flags. Cross-project search queries all projects simultaneously. No architectural change is required — the memory format already supports this. The governance question (which projects should be searchable together) is configuration, not code.
+The `project` field in metadata enables filtering. `semantic_search()` and `list_recent()` accept a `project` parameter. The CLI exposes `--project` for scoped queries. Cross-project search queries all projects simultaneously when no filter is applied. Provenance tracking records `replicated_from` and `replicated_at` on import. No architectural change was required — the memory format already supports this. The governance question (which projects should be searchable together) is configuration, not code.
 
 ### Scale 4 — Multiple Users / Team
 
@@ -147,6 +147,43 @@ Nodes across a network need collective memory with trust guarantees.
 JSONL becomes a replication protocol over HTTP or peer-to-peer connections. A trust engine evaluates source nodes. Governance provisions (constitutional or otherwise) determine sharing rules. Epoch Merkle trees and blockchain anchoring provide external verification — every claim is independently verifiable by anyone, without trusting the source.
 
 This is the full satisfaction of the foundational axiom. Below Scale 5, verification requires access to the data. At Scale 5, on-chain anchoring makes verification fully public. The axiom is satisfied within the access boundary at each scale; at Scale 5, the access boundary is removed entirely.
+
+---
+
+## The Coordination Layer
+
+The coordination bus (`open_brain/coordination/`) provides machine-to-machine messaging infrastructure modelled on financial market systems. The architectural parallel: an exchange matching engine + market data distribution + session management, unified behind a single gateway.
+
+### Design Principles
+
+| Financial Market Concept | Coordination Bus Implementation |
+|---|---|
+| FIX protocol | Typed envelopes with mandatory header fields (`protocol.py`) |
+| Session-level sequence numbers | Monotonic per (sender, channel) pair (`sequencer.py`) |
+| Exchange circuit breakers | Rate limiting + anomaly detection, three-state model (`circuit_breaker.py`) |
+| Market data feeds | Broadcast channels — all subscribers receive every message (`channel.py`) |
+| Order flow | Queue channels — round-robin to one subscriber per message (`channel.py`) |
+| FIX sessions | Direct channels — point-to-point delivery (`channel.py`) |
+| Heartbeat/session protocol | Presence protocol with join/depart lifecycle (`presence.py`) |
+| End-of-day settlement | Epoch sealing with Merkle roots (`epoch.py`) |
+
+### Performance Targets (Scale 0–1, In-Process)
+
+- Message dispatch: < 100 microseconds (async, zero-copy, no DB on hot path)
+- Throughput: > 100,000 messages/second sustained
+- Sequencing: O(1) per message
+- Channel routing: O(subscribers) per message
+
+Scale 2+ adds network transport beneath the same API. The bus is transport-agnostic — it does not know or care whether messages originate locally or remotely.
+
+### Modules
+
+- **`protocol.py`** — `Envelope` dataclass (frozen, slots), 20 message types, `make_envelope()`, `sign_envelope()`, `verify_envelope_signature()`.
+- **`sequencer.py`** — Thread-safe monotonic sequencing with gap detection.
+- **`circuit_breaker.py`** — Per-node and per-channel rate limiting. Token-bucket with three-state circuit breaker (CLOSED → OPEN → HALF_OPEN). Maps to Genesis ThreatSeverity levels.
+- **`channel.py`** — Three routing modes: broadcast, queue (round-robin), direct. Trust-gated dispatch (messages from nodes below trust threshold are dropped). Type filtering on subscriptions.
+- **`presence.py`** — Node lifecycle management: announce, heartbeat, depart, timeout. Configurable heartbeat interval and node timeout.
+- **`bus.py`** — Top-level API. Coordinates channels, sequencing, circuit breaking, and presence into a single coherent gateway. Request/reply pattern with correlated responses. Bounded audit trail.
 
 ---
 
@@ -194,10 +231,12 @@ This is stated intent and long-term architectural direction, not a current imple
 | CLI | **BUILT** | `open_brain/cli.py` — full command set |
 | File bridge | **BUILT** | `tools/ob_bridge.py` — JSON drop for sandboxed agents |
 | IM service | **BUILT** | `tools/im_service.py` — rolling buffer, file-locked |
+| Coordination bus | **BUILT** | `open_brain/coordination/` — typed envelopes, monotonic sequencing, circuit breakers, channel routing (broadcast/queue/direct), presence protocol, request/reply. 54 tests |
+| Provenance tracking (Scale 2+) | **BUILT** | `open_brain/db.py` — `import_memory()` records `replicated_from`, `replicated_at` |
 | Cross-machine transport (Scale 2) | **DESIGNED** | Security primitives built; git-based transport is manual workflow |
-| Cross-project search (Scale 3) | **DESIGNED** | Project field exists in metadata; cross-project query not yet exposed |
+| Cross-project search (Scale 3) | **BUILT** | `open_brain/db.py` — `project` filter on `semantic_search()` and `list_recent()`, `open_brain/cli.py --project` flag |
 | Team replication (Scale 4) | **DESIGNED** | Node identity + JSONL replication protocol specified |
-| Epoch Merkle tree | **DESIGNED** | Architecture specified; code not yet written |
+| Epoch Merkle tree | **BUILT** | `open_brain/merkle.py` (RFC 6962), `open_brain/epoch.py` (seal/verify/prove), `open_brain/migrations/003_epochs.sql`, 20 tests |
 | On-chain anchoring | **DESIGNED** | Architecture specified; Genesis has anchoring infrastructure |
 | Trust-weighted provenance | **DESIGNED** | Memory format supports trust metadata; trust engine is in Genesis |
 | Constitutional governance | **DESIGNED** | Governance framework exists in Genesis; OB integration not yet built |

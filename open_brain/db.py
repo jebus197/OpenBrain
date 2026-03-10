@@ -165,6 +165,7 @@ def semantic_search(
     source_agent: Optional[str] = None,
     memory_type: Optional[str] = None,
     area: Optional[str] = None,
+    project: Optional[str] = None,
 ) -> List[Dict[str, Any]]:
     """Cosine-distance search with optional metadata pre-filtering."""
     import numpy as np
@@ -183,6 +184,9 @@ def semantic_search(
     if area:
         conditions.append("metadata->>'area' = %s")
         params.append(area)
+    if project:
+        conditions.append("metadata->>'project' = %s")
+        params.append(project)
 
     where_sql = ("WHERE " + " AND ".join(conditions)) if conditions else ""
     params.append(limit)
@@ -210,6 +214,7 @@ def list_recent(
     source_agent: Optional[str] = None,
     memory_type: Optional[str] = None,
     area: Optional[str] = None,
+    project: Optional[str] = None,
 ) -> List[Dict[str, Any]]:
     """List recent memories, newest first, with optional filters."""
     conditions = []
@@ -224,6 +229,9 @@ def list_recent(
     if area:
         conditions.append("metadata->>'area' = %s")
         params.append(area)
+    if project:
+        conditions.append("metadata->>'project' = %s")
+        params.append(project)
 
     where_sql = ("WHERE " + " AND ".join(conditions)) if conditions else ""
     params.append(limit)
@@ -461,8 +469,14 @@ def export_memories(
 
 def import_memory(
     mem: Dict[str, Any],
+    source_node: Optional[str] = None,
 ) -> str:
     """Import a single memory via upsert.
+
+    Args:
+        mem: Memory dict (from JSONL export).
+        source_node: Node ID of the source machine. If provided,
+            recorded as metadata.replicated_from for provenance.
 
     Returns:
         'inserted' — new memory added
@@ -506,6 +520,15 @@ def import_memory(
             # New memory — insert
             vec = np.array(mem["embedding"], dtype=np.float32)
             created_at = mem.get("created_at")
+            metadata = dict(mem.get("metadata", {}))
+
+            # Provenance tracking: record source node on import.
+            if source_node:
+                metadata["replicated_from"] = source_node
+                metadata["replicated_at"] = datetime.now(
+                    timezone.utc
+                ).isoformat()
+
             cur.execute(
                 """
                 INSERT INTO memories
@@ -522,7 +545,7 @@ def import_memory(
                     content_hash,
                     mem.get("previous_hash"),
                     mem.get("signature"),
-                    json.dumps(mem.get("metadata", {})),
+                    json.dumps(metadata),
                     created_at,
                 ),
             )
