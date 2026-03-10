@@ -1,12 +1,14 @@
 # Open Brain
 
-Persistent cross-agent memory for AI-assisted software development.
+Persistent, verifiable memory for AI agents — from a single machine to a coordinated network.
 
-If you use AI coding agents — Claude Code, Codex, Copilot, Cursor, Aider, Windsurf, or any combination — Open Brain gives them a shared memory that survives across sessions, across agents, and across projects. Agents remember what was decided, what was tried, what worked, and what didn't. They coordinate instead of repeating each other's work. The memory is searchable by meaning, not just keywords, so an agent can ask "what did we decide about authentication?" and get the relevant decision even if the word "authentication" was never used.
+Open Brain gives AI agents a shared memory that survives across sessions, across agents, across machines, and across projects. Agents remember what was decided, what was tried, what worked, and what didn't. They coordinate instead of repeating each other's work. The memory is searchable by meaning, not just keywords, so an agent can ask "what did we decide about authentication?" and get the relevant decision even if the word "authentication" was never used.
+
+The system is designed around a single architectural invariant: the memory format never changes, regardless of scale. A memory created by one agent on a laptop is structurally identical to a memory replicated across a network of cooperating nodes. What changes at each scale is only the transport layer (how memories move) and the governance layer (who is permitted to share what). This means the same tools, the same verification commands, and the same integrity guarantees apply whether you are a solo researcher or part of a distributed team. See [ARCHITECTURE.md](ARCHITECTURE.md) for the full scale-by-scale design.
 
 ## The Problem
 
-AI coding agents are stateless. Every new session starts from zero — previous decisions, architectural choices, debugging insights, and task assignments are gone. This creates three compounding failures:
+AI agents are stateless. Every new session starts from zero — previous decisions, architectural choices, debugging insights, and task assignments are gone. This creates compounding failures at every level of scale:
 
 1. **Context loss across sessions.** An agent spends the first portion of every session rediscovering what the previous session already established. On long-running projects, this cost grows with every session boundary.
 
@@ -14,7 +16,7 @@ AI coding agents are stateless. Every new session starts from zero — previous 
 
 3. **Isolation between agents.** When multiple agents work on the same project — a common pattern as teams adopt different tools for different tasks — each agent operates in its own silo. Agent A's insights are invisible to Agent B. Work is duplicated, decisions diverge, and integration failures emerge late.
 
-Open Brain addresses all three. Agents write memories to a shared database. Any agent can search them semantically or browse recent activity. The result: agents that remember, coordinate, and build on each other's work.
+These are not separate problems — they are the same problem (context loss) repeating at increasing scale: within a session, across sessions, across machines, across projects, across team members, and ultimately across an entire network. Open Brain addresses the underlying problem once: agents write memories to a shared store with a format that is the same at every scale. Any agent can search them semantically or browse recent activity. The integrity layer ensures that memories are tamper-evident and attributable. The result: agents that remember, coordinate, and build on each other's work — and whose memory is independently verifiable.
 
 ## The Approach
 
@@ -326,6 +328,8 @@ Full alias reference with IM and bridge shortcuts: `templates/SHORTCUTS.md`.
 
 ### Architecture
 
+The diagram below shows the single-machine architecture (Scale 0–1). For the full scale-by-scale design — how this extends from one machine to a coordinated network without changing the memory format — see [ARCHITECTURE.md](ARCHITECTURE.md).
+
 ```
 +---------------------------------------------------------+
 |                    Your Agents                          |
@@ -465,6 +469,7 @@ OpenBrain/
 ├── launchd/               # macOS daemon config
 ├── systemd/               # Linux daemon config
 ├── pyproject.toml         # Package metadata
+├── ARCHITECTURE.md        # Scale architecture (Scales 0–5) and design rationale
 ├── LICENSE                # MIT
 └── README.md              # This file
 ```

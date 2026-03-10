@@ -1,6 +1,6 @@
 # open_brain — Python Package
 
-Core package for Open Brain. Persistent, verifiable memory for AI agents — searchable by meaning, with built-in integrity verification and encrypted transport. Accessible via MCP server or CLI.
+Core package for Open Brain. Persistent, verifiable memory for AI agents — searchable by meaning, with built-in integrity verification and encrypted transport. Designed around a scale-invariant memory format: the same record structure serves a single agent on a laptop and a network of cooperating nodes. Accessible via MCP server or CLI. See [ARCHITECTURE.md](../ARCHITECTURE.md) for the full scale design.
 
 ## Quick Start
 
