@@ -72,7 +72,7 @@ The foundational axiom — all truth should be anchored and independently verifi
 | **Hash chain** | Deletion and reordering detectable. Each memory links to its predecessor. Breaking the chain requires forging a hash. | All scales (Scale 0+) |
 | **Cryptographic signature** | Origin provenance. The machine that created the memory can be verified mathematically, not just by a claimed name. | Scale 1+ (requires keypair) |
 | **Epoch Merkle tree** | Batch verification. Thousands of memory hashes are combined into a single root hash per time period (epoch). | Scale 1+ (BUILT — `open_brain/merkle.py`, `open_brain/epoch.py`) |
-| **On-chain anchor** | Externally verifiable proof. The Merkle root is stored in a blockchain transaction. Anyone can verify, without data access. | Scale 4+ (designed, not yet implemented) |
+| **On-chain anchor** | Externally verifiable proof. The Merkle root is stored in a blockchain transaction. Anyone can verify, without data access — only SHA-256 and a block explorer required. | Scale 4+ (OB epoch infrastructure BUILT; on-chain anchoring operational in [Genesis](https://github.com/jebus197/Project_Genesis) — 8 constitutional anchors on Ethereum Sepolia, independently verifiable via [Trust Mint Log](https://github.com/jebus197/Project_Genesis/blob/main/docs/ANCHORS.md). `EpochAdapter` bridges OB epochs to Genesis's four-domain commitment system) |
 | **Trust-weighted provenance** | Source credibility assessment. Who created this memory? What is their earned trust score? | Scale 4+ (requires trust engine) |
 | **Constitutional governance** | Sharing and privacy rules. What can be shared, with whom, under what conditions — enforced structurally, not by policy. | Scale 4+ (requires governance framework) |
 
@@ -237,7 +237,7 @@ This is stated intent and long-term architectural direction, not a current imple
 | Cross-project search (Scale 3) | **BUILT** | `open_brain/db.py` — `project` filter on `semantic_search()` and `list_recent()`, `open_brain/cli.py --project` flag |
 | Team replication (Scale 4) | **DESIGNED** | Node identity + JSONL replication protocol specified |
 | Epoch Merkle tree | **BUILT** | `open_brain/merkle.py` (RFC 6962), `open_brain/epoch.py` (seal/verify/prove), `open_brain/migrations/003_epochs.sql`, 20 tests |
-| On-chain anchoring | **DESIGNED** | Architecture specified; Genesis has anchoring infrastructure |
+| On-chain anchoring | **DESIGNED** (Genesis infrastructure **BUILT**) | OB epoch Merkle infrastructure built (`merkle.py`, `epoch.py`, `EpochAdapter`). On-chain anchoring operational in Genesis: 8 constitutional anchors on Ethereum Sepolia ([Trust Mint Log](https://github.com/jebus197/Project_Genesis/blob/main/docs/ANCHORS.md)), four-domain commitment system (`commitment_builder.py`, `epoch_service.py`), tiered anchor cadence (C0/C1/C2), constitutional events anchor immediately. OB→Genesis bridge via `EpochAdapter` — not yet wired end-to-end |
 | Trust-weighted provenance | **DESIGNED** | Memory format supports trust metadata; trust engine is in Genesis |
 | Constitutional governance | **DESIGNED** | Governance framework exists in Genesis; OB integration not yet built |
 | P2P replication (Scale 5) | **SPECULATIVE** | Requires network adoption; infrastructure is specifiable |

@@ -38,6 +38,8 @@ The system is built on a single foundational axiom: **all truth should be anchor
 
 This applies at every layer. At the reasoning level, agent directives enforce Popperian falsification — claims must survive deliberate attempts to disprove them. At the data level, the integrity layer enforces the same principle mechanically: every memory is fingerprinted (content hash), chained to its predecessor (hash chain), and optionally signed by the machine that created it (cryptographic signature). The result is a memory store where tampering, reordering, or impersonation is detectable by anyone with access — not by trusting the system, but by independently verifying the mathematics. Exports can be encrypted for secure transport between machines.
 
+The axiom extends beyond the local machine. Open Brain seals memories into Merkle-rooted epochs — each epoch compresses thousands of individual content hashes into a single root hash. That root can be anchored to a public blockchain in one transaction, making the entire epoch independently verifiable by anyone, without access to the data itself. [Genesis](https://github.com/jebus197/Project_Genesis) already uses this pattern operationally: eight constitutional anchors on Ethereum Sepolia (the [Trust Mint Log](https://github.com/jebus197/Project_Genesis/blob/main/docs/ANCHORS.md)), each proving that a specific version of the constitution existed at a specific time. The `EpochAdapter` protocol bridges Open Brain's epoch infrastructure to Genesis's four-domain commitment system — mission events, trust deltas, governance ballots, and review decisions — so that any memory stored through Open Brain can ultimately be traced to an on-chain anchor. The cryptographic heritage runs through Haber and Stornetta (1991), Bitcoin's `OP_RETURN` (2014), and Certificate Transparency (RFC 6962) — the same lineage, applied to AI agent memory.
+
 None of these primitives are novel — content hashing follows the same pattern as Git and Certificate Transparency; the signing scheme (Ed25519) is the same one used by SSH and Signal; the encryption (AES-256-GCM) is the worldwide standard for authenticated encryption. The contribution is the combination and application: a shared AI memory that is not merely persistent but evidentially trustworthy.
 
 The falsification methodology itself is documented with the same rigour. [METHODOLOGY.md](METHODOLOGY.md) describes the P-Pass process (iterative Popperian falsification applied to engineering claims), reports a modular-vs-monolithic review comparison (N=1, with advantages and disadvantages honestly documented), and provides a reproducible evaluation protocol so anyone can test — or refute — the claims.
@@ -165,6 +167,7 @@ if ob.crypto.has_keypair():
 - **Graceful degradation** — IM, bus, and crypto work with Python alone. Memory requires PostgreSQL. The unified API reports availability and callers check before use — no crashes, no exceptions
 - **Content integrity** — every memory is fingerprinted and chained to the one before it, so any tampering, deletion, or reordering is detectable. Uses the same content-addressing pattern as Git and Certificate Transparency (SHA-256 hash chain)
 - **Cryptographic signing** — each machine can generate a keypair; when present, memories and messages are automatically signed, proving which machine created them — not just a claimed name, but a mathematically verifiable assertion (Ed25519, RFC 8032 — the same scheme used by SSH and Signal)
+- **Blockchain-anchored epochs** — memories are sealed into Merkle-rooted epochs (RFC 6962 binary hash tree, odd-promotion — not Bitcoin's duplication). Each epoch compresses thousands of content hashes into a single root that can be stored in one blockchain transaction. Any individual memory can then be verified against the on-chain root in O(log N) hash computations. [Genesis](https://github.com/jebus197/Project_Genesis) already anchors constitutionally: eight Genesis Blocks on Ethereum Sepolia, each independently verifiable via [Etherscan](https://sepolia.etherscan.io/) using only SHA-256 and a public ledger — no Genesis software, no API calls, no trust in any party. The `EpochAdapter` protocol bridges OB's single-domain Merkle tree to Genesis's four-domain commitment system (mission, trust, governance, review)
 - **Encrypted export** — memory exports can be passphrase-protected for secure transport between machines. The passphrase is converted to an encryption key using a deliberately slow process that resists automated guessing (AES-256-GCM encryption, NIST SP 800-38D; Scrypt key derivation, RFC 7914)
 - **Portable export/import** — one memory per line, human-readable format (JSONL); fingerprints and signatures travel with the data; verify everything after import with a single command
 - **Adapter protocols** — four `@runtime_checkable` Protocol classes for project integration (event, insight, threat, epoch). Projects implement them; OB never imports project code. Zero coupling by design
@@ -336,7 +339,7 @@ Four `@runtime_checkable` Protocol classes are defined in `open_brain/adapters.p
 | `EventAdapter` | Convert project events to OB envelope payloads | `to_envelope_payload()`, `from_envelope_payload()` |
 | `InsightAdapter` | Carry project insight signals on the coordination bus | `to_bus_payload()`, `validate()` |
 | `ThreatAdapter` | Carry project threat signals on the coordination bus | `to_bus_payload()`, `severity_requires_human()` |
-| `EpochAdapter` | Bridge project epoch/commitment events to OB epoch sealing | `domain_roots()`, `leaf_hashes()` |
+| `EpochAdapter` | Bridge project epoch/commitment events to OB epoch sealing. Genesis uses four-domain commitments (mission, trust, governance, review); OB uses single-domain Merkle. The adapter bridges them, so OB epochs can be anchored through Genesis's blockchain infrastructure | `domain_roots()`, `leaf_hashes()` |
 
 **Registration pattern:**
 
@@ -354,6 +357,18 @@ adapter = ob.get_adapter("event")
 ```
 
 The adapter protocols use `Any` for all signal/event parameters and `Dict[str, Any]` for payloads — OB never inspects project types. Each protocol documents the required payload fields in its docstring.
+
+#### The anchoring pipeline
+
+The `EpochAdapter` deserves specific attention because it connects OB's local integrity guarantees to externally verifiable proof. The pipeline:
+
+1. Memories accumulate during an epoch (time window, default 1 hour)
+2. `ob seal-epoch` computes a Merkle root from all memory content hashes in the window
+3. The epoch links to the previous epoch's root (hash chain across epochs)
+4. The `EpochAdapter` maps OB's single-domain root to the project's commitment structure
+5. The project anchors the commitment to a public blockchain (one transaction per epoch)
+
+The result: any individual memory can be traced from its content hash → epoch Merkle proof → on-chain anchor. Verification requires only SHA-256 and a block explorer — no OB installation, no project software, no trust in any party. Genesis already does this for constitutional documents: eight anchors on Ethereum Sepolia, each independently verifiable via the [Trust Mint Log](https://github.com/jebus197/Project_Genesis/blob/main/docs/ANCHORS.md). The same infrastructure extends to agent memories through the adapter.
 
 ### Configuration
 
