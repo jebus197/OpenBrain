@@ -6,6 +6,8 @@ Open Brain gives AI agents a shared memory that survives across sessions, across
 
 The system is designed around a single architectural invariant: the memory format never changes, regardless of scale. A memory created by one agent on a laptop is structurally identical to a memory replicated across a network of cooperating nodes. What changes at each scale is only the transport layer (how memories move) and the governance layer (who is permitted to share what). This means the same tools, the same verification commands, and the same integrity guarantees apply whether you are a solo researcher or part of a distributed team. See [ARCHITECTURE.md](ARCHITECTURE.md) for the full scale-by-scale design.
 
+> **On methodology.** Open Brain does not claim to be correct. It claims to be falsifiable. Every architectural assertion and quality claim is treated as a hypothesis subject to deliberate refutation. The project includes a reproducible evaluation protocol for testing its own claims. See [METHODOLOGY.md](METHODOLOGY.md) for the epistemological framework, including the P-Pass process, the modular-vs-monolithic observation (N=1, honestly bounded), and the full experimental protocol.
+
 ## The Problem
 
 AI agents are stateless. Every new session starts from zero — previous decisions, architectural choices, debugging insights, and task assignments are gone. This creates compounding failures at every level of scale:
@@ -26,17 +28,31 @@ Open Brain is one component of a structured approach to human-AI collaboration. 
 
 - **Agent directives** — a set of behavioural instructions loaded at session start that shape how the agent works. The directives used in developing Open Brain emphasise falsification (actively trying to disprove conclusions before presenting them), simplicity (default to the simplest sufficient solution), honesty (say "I don't know" when that's the truth), and resource discipline (flag wasteful work before executing it). This is Karl Popper's principle of falsification applied to software engineering: subject every claim, fix, and architectural choice to deliberate attempts to break it. What survives is robust; what doesn't is caught before it ships.
 
-- **A coordination protocol** — an inter-agent messaging service (lightweight, rolling buffer) paired with project-level memory files that give agents startup context. The messaging service handles real-time notifications; Open Brain handles persistent knowledge. Both are consulted on agent startup. Neither replaces the other.
+- **A coordination substrate** — four integrated subsystems that degrade gracefully depending on what infrastructure is available. The **IM service** provides SQLite WAL-mode messaging with full-text search, threading, delivery receipts, and retention policies — no server required. The **coordination bus** provides typed pub/sub messaging with circuit breaking, presence monitoring, and message sequencing. The **memory layer** provides semantic search via PostgreSQL and pgvector. The **crypto layer** provides Ed25519 signing and AES-256-GCM encryption. IM, bus, and crypto work with Python alone; only memory requires a database server.
 
 Together, these compensate for the three weaknesses described above. The `templates/` directory contains example configurations for all three elements: `CLAUDE.md.example` (agent directives), `MEMORY.md.example` (project-level persistent context), `RECOVERY.md.example` (session recovery protocol), and `SHORTCUTS.md` (shell aliases). These are opt-in — Open Brain works without them, but no single component addresses all three weaknesses. Memory alone doesn't fix uncritical compliance; directives alone don't survive context loss; coordination alone doesn't fix either. The combination is designed to cover all three, and the claim is falsifiable: adopt it, measure whether your outcomes change, discard what doesn't work.
 
-### Design Principle
+## Design Principle
 
 The system is built on a single foundational axiom: **all truth should be anchored and independently verifiable.**
 
 This applies at every layer. At the reasoning level, agent directives enforce Popperian falsification — claims must survive deliberate attempts to disprove them. At the data level, the integrity layer enforces the same principle mechanically: every memory is fingerprinted (content hash), chained to its predecessor (hash chain), and optionally signed by the machine that created it (cryptographic signature). The result is a memory store where tampering, reordering, or impersonation is detectable by anyone with access — not by trusting the system, but by independently verifying the mathematics. Exports can be encrypted for secure transport between machines.
 
-None of these primitives are novel — content hashing follows the same pattern as Git and Certificate Transparency; the signing scheme (Ed25519) is the same one used by SSH and Signal; the encryption (AES-256-GCM) is the worldwide standard for authenticated encryption. The contribution is the combination and application: a shared AI memory that is not merely persistent but evidentially trustworthy. For a full treatment of the falsification methodology and a reproducible evaluation protocol, see [METHODOLOGY.md](METHODOLOGY.md).
+None of these primitives are novel — content hashing follows the same pattern as Git and Certificate Transparency; the signing scheme (Ed25519) is the same one used by SSH and Signal; the encryption (AES-256-GCM) is the worldwide standard for authenticated encryption. The contribution is the combination and application: a shared AI memory that is not merely persistent but evidentially trustworthy.
+
+The falsification methodology itself is documented with the same rigour. [METHODOLOGY.md](METHODOLOGY.md) describes the P-Pass process (iterative Popperian falsification applied to engineering claims), reports a modular-vs-monolithic review comparison (N=1, with advantages and disadvantages honestly documented), and provides a reproducible evaluation protocol so anyone can test — or refute — the claims.
+
+## Methodology
+
+Open Brain treats its own design claims as hypotheses. Every architectural assertion is accompanied by the conditions under which it would be false. The methodology document describes:
+
+1. **The P-Pass process** — iterative falsification applied to engineering claims. State the claim precisely, classify constraints as HARD or SOFT, identify what would falsify the claim, actively attempt falsification, record whether the claim survives, survives with boundary conditions, or is falsified.
+
+2. **A direct comparison** (N=1, honestly bounded) — modular vs monolithic code review during the unified architecture implementation. The modular approach produced structural process advantages (better-organised findings, systematic constraint tables). Whether it finds more bugs than monolithic review cannot be determined from one observation.
+
+3. **A reproducible evaluation protocol** — seeded-fault methodology, 7-category bug taxonomy, 4-point scoring rubric, statistical analysis framework. Published so anyone can execute it, reproduce or refute the observation, and extend the methodology.
+
+For the full treatment: [METHODOLOGY.md](METHODOLOGY.md). For the architectural falsification audit (7 claims tested): [ARCHITECTURE.md](ARCHITECTURE.md).
 
 ## Getting Started
 
@@ -52,7 +68,7 @@ git clone https://github.com/jebus197/OpenBrain.git && cd OpenBrain && ./scripts
 git clone https://github.com/jebus197/OpenBrain.git; cd OpenBrain; .\scripts\install.ps1
 ```
 
-The install script checks prerequisites (Python 3.9+, PostgreSQL, pgvector), creates a virtualenv, installs dependencies, and launches an interactive setup wizard that configures the database, registers your project, detects your agents, and runs a smoke test.
+The install script checks prerequisites (Python 3.9+), creates a virtualenv, installs dependencies, and launches an interactive setup wizard. If PostgreSQL and pgvector are available, the wizard configures semantic memory search. If not, Open Brain still works — IM, bus, and crypto are fully functional with Python alone.
 
 If Python is installed but not in your PATH, the installer will find it and show the exact command to fix your PATH — it never modifies your shell config automatically.
 
@@ -83,11 +99,13 @@ ob-doctor
 
 ### Prerequisites
 
-| Requirement | Version | macOS | Linux | Windows |
-|---|---|---|---|---|
-| Python | 3.9+ | `brew install python@3.12` | `apt install python3` | [python.org](https://python.org) or `winget install Python.Python.3.12` |
-| PostgreSQL | 14+ | `brew install postgresql@16` | `apt install postgresql` | [postgresql.org/download/windows](https://www.postgresql.org/download/windows/) |
-| pgvector | 0.5+ | `brew install pgvector` | `apt install postgresql-16-pgvector` | [pgvector#windows](https://github.com/pgvector/pgvector#windows) |
+| Requirement | Version | Required for | macOS | Linux | Windows |
+|---|---|---|---|---|---|
+| Python | 3.9+ | Everything | `brew install python@3.12` | `apt install python3` | [python.org](https://python.org) |
+| PostgreSQL | 14+ | Semantic memory only | `brew install postgresql@16` | `apt install postgresql` | [postgresql.org](https://www.postgresql.org/download/windows/) |
+| pgvector | 0.5+ | Semantic memory only | `brew install pgvector` | `apt install postgresql-16-pgvector` | [pgvector](https://github.com/pgvector/pgvector#windows) |
+
+**Python alone** gives you: IM service (SQLite WAL), coordination bus, crypto (signing/encryption), CLI, and MCP server. Adding PostgreSQL + pgvector enables semantic memory search (vector embeddings, searchable by meaning).
 
 The embedding model (BAAI/bge-small-en-v1.5, ~130 MB) downloads automatically on first use. No API keys needed.
 
@@ -101,6 +119,39 @@ The embedding model (BAAI/bge-small-en-v1.5, ~130 MB) downloads automatically on
 
 ## Reference
 
+### Unified API
+
+The `OpenBrain` class provides a single entry point to four subsystems. Three work with Python alone; one requires PostgreSQL:
+
+```python
+from open_brain import OpenBrain
+
+ob = OpenBrain(project="my_project", agent="cc")
+
+# IM — always available (SQLite WAL-mode, no server needed)
+ob.im.post("general", "Session starting")
+messages = ob.im.read("general", limit=10)
+results  = ob.im.search("authentication decision")
+
+# Bus — always available (in-process asyncio, typed pub/sub)
+await ob.bus.publish("memory.events", MessageType.MEMORY_CREATED, payload)
+sub_id = await ob.bus.subscribe("memory.events", my_handler)
+
+# Memory — requires PostgreSQL (graceful degradation: None when absent)
+if ob.memory is not None:
+    mem_id = ob.memory.capture("Refactored auth to JWT", memory_type="decision")
+    results = ob.memory.search("authentication approach")
+
+# Crypto — always available (Ed25519 key management)
+if ob.crypto.has_keypair():
+    signature = ob.crypto.sign(b"data to sign")
+    valid = ob.crypto.verify(b"data to sign", signature)
+```
+
+**Graceful degradation:** When PostgreSQL is unavailable, `ob.memory` returns `None` instead of raising an error. All other subsystems continue working. This means Open Brain is useful even without a database — agents can still coordinate via IM and the bus, sign data, and manage keys. The `is_db_available` property reports the current state.
+
+**Lifecycle:** For long-running processes using the coordination bus, call `await ob.start()` to begin heartbeat monitoring and `await ob.shutdown()` for graceful cleanup.
+
 ### Capabilities
 
 - **Semantic search** — find memories by meaning, not keywords (pgvector + BAAI/bge-small-en-v1.5, 384-dimensional embeddings, runs locally, zero API cost)
@@ -109,11 +160,14 @@ The embedding model (BAAI/bge-small-en-v1.5, ~130 MB) downloads automatically on
 - **Task lifecycle** — pending → in_progress → blocked → completed → cancelled, with assignments
 - **Session context** — agents get pending tasks, blocked items, and recent activity from other agents on startup
 - **Three access methods** — MCP server (for Claude Code and compatible agents), CLI (for everything), file bridge (for sandboxed agents)
-- **IM service** — lightweight inter-agent messaging with rolling buffer (20 messages per stream, file-locked)
+- **IM service** — SQLite WAL-mode messaging with full-text search (FTS5), threading, delivery receipts, retention policies, and Ed25519 signing. Channels are typed, messages are content-hashed, and the schema supports TTL-based expiry
+- **Coordination bus** — typed pub/sub messaging with circuit breaking, presence monitoring, and message sequencing. 15 message types across system, memory, intelligence, and task domains. Sub-millisecond dispatch (in-process asyncio, zero serialisation)
+- **Graceful degradation** — IM, bus, and crypto work with Python alone. Memory requires PostgreSQL. The unified API reports availability and callers check before use — no crashes, no exceptions
 - **Content integrity** — every memory is fingerprinted and chained to the one before it, so any tampering, deletion, or reordering is detectable. Uses the same content-addressing pattern as Git and Certificate Transparency (SHA-256 hash chain)
-- **Cryptographic signing** — each machine can generate a keypair; when present, memories are automatically signed on storage, proving which machine created them — not just a claimed name, but a mathematically verifiable assertion (Ed25519, RFC 8032 — the same scheme used by SSH and Signal)
+- **Cryptographic signing** — each machine can generate a keypair; when present, memories and messages are automatically signed, proving which machine created them — not just a claimed name, but a mathematically verifiable assertion (Ed25519, RFC 8032 — the same scheme used by SSH and Signal)
 - **Encrypted export** — memory exports can be passphrase-protected for secure transport between machines. The passphrase is converted to an encryption key using a deliberately slow process that resists automated guessing (AES-256-GCM encryption, NIST SP 800-38D; Scrypt key derivation, RFC 7914)
 - **Portable export/import** — one memory per line, human-readable format (JSONL); fingerprints and signatures travel with the data; verify everything after import with a single command
+- **Adapter protocols** — four `@runtime_checkable` Protocol classes for project integration (event, insight, threat, epoch). Projects implement them; OB never imports project code. Zero coupling by design
 - **Node identity** — each machine gets a stable identifier derived from its hostname, embedded in every memory's metadata — so you can always tell where a memory originated
 - **Input sanitisation** — prompt-injection pattern detection before storage
 - **Role-separated database access** — reader/writer roles enforce least privilege
@@ -161,7 +215,67 @@ ob import out.jsonl            # Import memories (verifies hash chain)
 ob import out.jsonl --decrypt  # Import encrypted export (prompts for passphrase)
 ob verify                      # Verify hash chain + signatures for all stored memories
 ob migrate                     # Apply pending database migrations
+
+# Epoch management (Merkle-sealed integrity checkpoints)
+ob seal-epoch                  # Seal current state into a Merkle-rooted epoch
+ob list-epochs --limit 5       # List recent epochs
+ob verify-epochs               # Verify all epoch Merkle trees
+
+# IM service (inter-agent messaging — see IM section below)
+ob im post general "Build complete, 47 tests passing"
+ob im read general --limit 10
+ob im search "authentication"
 ```
+
+### IM Service (inter-agent messaging)
+
+SQLite WAL-mode messaging with full-text search, threading, delivery receipts, and retention policies. No server needed — the database is a local file per project.
+
+**Invocation:**
+
+```bash
+# Via the main CLI
+python3 -m open_brain.cli im <command>
+
+# Or directly
+python3 -m open_brain.im <command>
+
+# With project isolation
+python3 -m open_brain.im --project my_project <command>
+
+# With explicit database path
+python3 -m open_brain.im --db-path /path/to/messages.sqlite3 <command>
+```
+
+Default database: `~/.openbrain/im/default.sqlite3`. Per-project: `~/.openbrain/im/{project}.sqlite3`.
+
+**Commands:**
+
+| Command | Description | Example |
+|---|---|---|
+| `post` | Post a message to a channel | `ob im post general "Tests passing"` |
+| `action` | Post a message with type "action" | `ob im action ops "Deploy started"` |
+| `read` | Read messages from a channel | `ob im read general --limit 20` |
+| `recent` | Read most recent messages across all channels | `ob im recent 10` |
+| `search` | Full-text search across all messages (FTS5) | `ob im search "authentication"` |
+| `thread` | Read a message thread (by correlation ID) | `ob im thread <msg_id>` |
+| `unread` | Show unread messages for an agent | `ob im unread --agent cc` |
+| `channels` | List all channels | `ob im channels` |
+| `init` | Create a new channel | `ob im init dev "Development"` |
+| `clear` | Clear all messages from a channel | `ob im clear old-channel` |
+| `purge` | Purge expired messages (TTL-based retention) | `ob im purge` |
+| `migrate-json` | Migrate from old JSON format to SQLite | `ob im migrate-json /path/to/old/` |
+| `r` | Shorthand for `read` (default channel) | `ob im r` |
+| `rt` | Shorthand for `read` + `recent` together | `ob im rt` |
+
+**Features:**
+- **Content hashing** — every message is fingerprinted (`sha256:<hex>` of canonical `{sender, content, created_at}`)
+- **Ed25519 signing** — messages are automatically signed when a keypair exists
+- **Threading** — messages can be grouped by correlation ID for conversational threading
+- **Delivery receipts** — mark messages as delivered or read, query unread counts
+- **Retention policies** — per-channel TTL; `purge` removes expired messages
+- **Full-text search** — FTS5 indexes on message content, searchable via `search` command
+- **Channel validation** — channel IDs must match `^[a-zA-Z0-9_-]{1,64}$`
 
 ### MCP Server (Claude Code, etc.)
 
@@ -181,7 +295,7 @@ Add to your agent's MCP configuration (e.g. `.claude/settings.json`):
 
 **Windows note:** Use `"python"` instead of `"python3"` — standard Windows Python installs don't create a `python3` executable.
 
-The MCP server exposes six tools: `capture_memory`, `semantic_search`, `list_recent`, `get_pending_tasks`, `update_task_status`, `get_session_context`. These appear natively in the agent's tool palette.
+The MCP server exposes six tools: `capture_memory`, `semantic_search`, `list_recent`, `get_pending_tasks`, `update_task_status`, `get_session_context`. These appear natively in the agent's tool palette and operate through the same facades as the CLI.
 
 ### File Bridge (for sandboxed agents)
 
@@ -211,20 +325,35 @@ python3 tools/ob_bridge.py --watch --interval 60
 - Linux: systemd unit provided in `systemd/` directory (user-level, `~/.config/systemd/user/`)
 - Windows: use Task Scheduler to run `python tools/ob_bridge.py --watch --interval 60`
 
-### IM Service (inter-agent messaging)
+### Adapters (project integration)
 
-Lightweight messaging between agents, separate from persistent memory:
+Open Brain never imports project code. Instead, projects implement adapter protocols and register them at startup. This enforces zero coupling — OB can be used by any project without modifications.
 
-```bash
-# Post a message
-python3 tools/im_service.py --project my_project post agent1 "Build complete, 47 tests passing"
+Four `@runtime_checkable` Protocol classes are defined in `open_brain/adapters.py`:
 
-# Read messages
-python3 tools/im_service.py --project my_project read
+| Adapter | Purpose | Key methods |
+|---|---|---|
+| `EventAdapter` | Convert project events to OB envelope payloads | `to_envelope_payload()`, `from_envelope_payload()` |
+| `InsightAdapter` | Carry project insight signals on the coordination bus | `to_bus_payload()`, `validate()` |
+| `ThreatAdapter` | Carry project threat signals on the coordination bus | `to_bus_payload()`, `severity_requires_human()` |
+| `EpochAdapter` | Bridge project epoch/commitment events to OB epoch sealing | `domain_roots()`, `leaf_hashes()` |
 
-# Read recent N messages
-python3 tools/im_service.py --project my_project recent 5
+**Registration pattern:**
+
+```python
+from open_brain import OpenBrain
+
+ob = OpenBrain(project="project_genesis", agent="cc")
+ob.register_adapter("event", GenesisEventAdapter())
+ob.register_adapter("insight", GenesisInsightAdapter())
+ob.register_adapter("threat", GenesisThreatAdapter())
+ob.register_adapter("epoch", GenesisEpochAdapter(epoch_service))
+
+# Retrieve later
+adapter = ob.get_adapter("event")
 ```
+
+The adapter protocols use `Any` for all signal/event parameters and `Dict[str, Any]` for payloads — OB never inspects project types. Each protocol documents the required payload fields in its docstring.
 
 ### Configuration
 
@@ -232,7 +361,7 @@ Configuration lives in `~/.openbrain/` (all platforms — on Windows this is `C:
 
 #### `~/.openbrain/keys/` — Ed25519 keypair (optional)
 
-Generated by `ob generate-keys`. When present, all new memories are automatically signed. The private key has restricted file permissions (0600 on POSIX systems). Never share the private key; the public key can be shared for signature verification on other machines.
+Generated by `ob generate-keys`. When present, all new memories and IM messages are automatically signed. The private key has restricted file permissions (0600 on POSIX systems). Never share the private key; the public key can be shared for signature verification on other machines.
 
 #### `~/.openbrain/config.json` — Global settings
 
@@ -249,7 +378,11 @@ Generated by `ob generate-keys`. When present, all new memories are automaticall
 }
 ```
 
-All fields are optional — defaults are shown above.
+All fields are optional — defaults are shown above. Database fields are only used when PostgreSQL is available.
+
+#### `~/.openbrain/im/` — IM databases
+
+One SQLite database per project: `~/.openbrain/im/{project}.sqlite3`. Created automatically on first use. The database uses WAL mode for concurrent read/write access.
 
 #### `~/.openbrain/projects.json` — Project registry
 
@@ -260,11 +393,6 @@ All fields are optional — defaults are shown above.
       "root": "/Users/me/projects/webapp",
       "outbox": "/Users/me/projects/webapp/ob_outbox",
       "agents": ["cc", "copilot", "cursor"]
-    },
-    "ml_pipeline": {
-      "root": "/Users/me/projects/ml",
-      "outbox": "/Users/me/projects/ml/ob_outbox",
-      "agents": ["cx", "aider"]
     }
   }
 }
@@ -301,6 +429,7 @@ Any setting can be overridden with `OPEN_BRAIN_` prefix:
 Add to `~/.zshrc` or `~/.bashrc`:
 
 ```bash
+# Core
 alias ob="python3 -m open_brain.cli"
 alias obst="ob status"
 alias obc="ob capture"
@@ -308,6 +437,12 @@ alias obs="ob search"
 alias obl="ob list-recent --limit 10"
 alias obp="ob pending-tasks"
 alias obctx="ob session-context"
+
+# IM
+alias obim="ob im"
+alias obims="ob im search"
+alias obimr="ob im read"
+alias obimp="ob im post"
 ```
 
 #### PowerShell (Windows)
@@ -322,37 +457,56 @@ function obs { ob search @args }
 function obl { ob list-recent --limit 10 }
 function obp { ob pending-tasks @args }
 function obctx { ob session-context @args }
+function obim { ob im @args }
 ```
 
-Full alias reference with IM and bridge shortcuts: `templates/SHORTCUTS.md`.
+Full alias reference with bridge shortcuts: `templates/SHORTCUTS.md`.
 
 ### Architecture
 
-The diagram below shows the single-machine architecture (Scale 0–1). For the full scale-by-scale design — how this extends from one machine to a coordinated network without changing the memory format — see [ARCHITECTURE.md](ARCHITECTURE.md).
+The diagram below shows the single-machine architecture (Scale 0–1) with all four subsystems. For the full scale-by-scale design — how this extends from one machine to a coordinated network without changing the memory format — see [ARCHITECTURE.md](ARCHITECTURE.md).
 
 ```
 +---------------------------------------------------------+
 |                    Your Agents                          |
 |  Claude Code | Codex | Copilot | Cursor | Aider | ...  |
 +--------------+-------+---------+--------+-------+------+
-|  MCP Server  |         CLI         |   File Bridge     |
-| (JSON-RPC    | (python3 -m         | (JSON -> outbox   |
-|  over stdio) |  open_brain.cli)    |  -> bridge)       |
-+--------------+---------------------+-------------------+
-|               Capture Pipeline                          |
-|  validate -> sanitise -> embed (bge-small) -> store     |
-+---------------------------------------------------------+
-|               Integrity Layer                           |
-|  SHA-256 content hash -> hash chain -> Ed25519 sign     |
-+---------------------------------------------------------+
-|        PostgreSQL + pgvector (384-dim cosine)           |
-|  ob_reader (SELECT only) | ob_writer (INSERT/UPDATE)    |
-+---------------------------------------------------------+
+       |                |                 |
+  MCP Server          CLI           File Bridge
+  (JSON-RPC)    (open_brain.cli)   (JSON outbox)
+       |                |                 |
++------v----------------v----------------v------+
+|              OpenBrain Unified API             |
+|  .im   .bus   .memory   .crypto   .adapters   |
++---+------+--------+---------+----------+------+
+    |      |        |         |          |
++---v--+ +-v------+ |  +------v---+  +---v--------+
+| IM   | | Bus    | |  | Crypto   |  | Adapters   |
+| Store| | Coord. | |  | Ed25519  |  | (project   |
+|------| |--------| |  | AES-GCM  |  |  protocols)|
+|SQLite| |Channels| |  +----------+  +------------+
+| WAL  | |Circuit |
+| FTS5 | |Breaker | +---------v---------+
+|Thread| |Presence| | Memory            |
+|Recpt.| |Sequencr| | Capture pipeline  |
++------+ +--------+ | Embed → Store     |
+                     | Hash chain → Sign |
+                     +-------------------+
+                     | PostgreSQL        |
+                     | + pgvector        |
+                     | (384-dim cosine)  |
+                     +-------------------+
+
+Degradation model:
+  IM ........... always available (SQLite, no server)
+  Bus .......... always available (in-process asyncio)
+  Crypto ....... always available (Ed25519 key files)
+  Memory ....... requires PostgreSQL (None when absent)
 ```
 
 ### Database Schema
 
-Single table, deliberately simple:
+**Memory store (PostgreSQL + pgvector):**
 
 ```sql
 CREATE TABLE memories (
@@ -372,14 +526,62 @@ Metadata is flexible JSONB: `source_agent`, `memory_type`, `area`, `action_statu
 
 **Integrity model:** `content_hash` is a fingerprint of the memory's content — if anything changes, the fingerprint won't match. `previous_hash` chains each memory to the one before it, so the entire sequence is tamper-evident (the first memory uses a fixed starting value). `signature` is the cryptographic proof that a specific machine's keypair produced this content. All three columns are optional — memories created before these features were added remain valid, they just lack verification data.
 
+**IM store (SQLite WAL-mode):**
+
+```sql
+-- Channels
+CREATE TABLE channels (
+    channel_id TEXT PRIMARY KEY,
+    display_name TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    metadata TEXT DEFAULT '{}'
+);
+
+-- Messages (content-hashed, optionally signed)
+CREATE TABLE messages (
+    msg_id TEXT PRIMARY KEY,
+    channel_id TEXT NOT NULL REFERENCES channels(channel_id),
+    sender TEXT NOT NULL,
+    content TEXT NOT NULL,
+    msg_type TEXT NOT NULL DEFAULT 'post',
+    correlation_id TEXT,           -- Threading support
+    content_hash TEXT NOT NULL,    -- sha256:<hex>
+    signature TEXT,                -- Ed25519 (hex)
+    created_at TEXT NOT NULL,
+    expires_at TEXT,               -- TTL-based retention
+    metadata TEXT DEFAULT '{}'
+);
+
+-- Delivery receipts
+CREATE TABLE delivery_receipts (
+    receipt_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    msg_id TEXT NOT NULL REFERENCES messages(msg_id),
+    recipient TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'sent',
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- Retention policies (per-channel TTL)
+CREATE TABLE retention_policy (
+    channel_id TEXT PRIMARY KEY REFERENCES channels(channel_id),
+    max_age_days INTEGER NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+```
+
+FTS5 full-text search index on `messages(content)` with automatic triggers for insert/delete/update.
+
 ### Testing
 
 ```bash
-# Run all tests (uses open_brain_test database)
+# Run all tests (uses open_brain_test database for memory tests)
 OPEN_BRAIN_DB_NAME=open_brain_test python3 -m pytest open_brain/tests/ -v
 
 # Run specific test file
-OPEN_BRAIN_DB_NAME=open_brain_test python3 -m pytest open_brain/tests/test_cli.py -v
+python3 -m pytest open_brain/tests/test_im_store.py -v
+
+# Run IM and coordination tests (no database required)
+python3 -m pytest open_brain/tests/test_im_store.py open_brain/tests/test_coordination.py -v
 ```
 
 On Windows (PowerShell):
@@ -416,6 +618,8 @@ sudo systemctl start postgresql
 net start postgresql-x64-16
 ```
 
+**Note:** If you don't need semantic memory search, this is not a problem — IM, bus, and crypto work without PostgreSQL.
+
 **"pgvector not found"** — Install the vector extension:
 ```bash
 # macOS
@@ -438,41 +642,57 @@ ob-setup
 
 ```
 OpenBrain/
-├── open_brain/            # Core Python package
-│   ├── __init__.py
-│   ├── config.py          # Dynamic configuration + node identity
-│   ├── db.py              # PostgreSQL + pgvector operations
-│   ├── capture.py         # Validate -> sanitise -> embed -> store pipeline
-│   ├── hashing.py         # SHA-256 content hashing + hash chain verification
-│   ├── crypto.py          # Ed25519 signing + AES-256-GCM encryption
-│   ├── sanitise.py        # Input sanitisation (prompt-injection detection)
-│   ├── mcp_server.py      # MCP server (JSON-RPC over stdio)
-│   ├── cli.py             # CLI interface
-│   ├── im_bridge.py       # IM bridge module
-│   ├── setup_wizard.py    # Interactive setup (ob-setup)
-│   ├── setup_db.sql       # Database schema (CREATE TABLE)
-│   ├── migrations/        # Idempotent schema migrations
-│   ├── troubleshoot.py    # Diagnostic tool (ob-doctor)
-│   └── tests/             # Test suite
+├── open_brain/                    # Core Python package
+│   ├── __init__.py                # OpenBrain unified API class
+│   ├── __main__.py                # python3 -m open_brain entry point
+│   ├── config.py                  # Dynamic configuration + node identity
+│   ├── db.py                      # PostgreSQL + pgvector operations
+│   ├── capture.py                 # Validate -> sanitise -> embed -> store pipeline
+│   ├── hashing.py                 # SHA-256 content hashing + hash chain verification
+│   ├── crypto.py                  # Ed25519 signing + AES-256-GCM encryption
+│   ├── epoch.py                   # Epoch sealing (Merkle-rooted integrity checkpoints)
+│   ├── merkle.py                  # Merkle tree implementation
+│   ├── sanitise.py                # Input sanitisation (prompt-injection detection)
+│   ├── mcp_server.py              # MCP server (JSON-RPC over stdio)
+│   ├── cli.py                     # CLI interface (16 commands)
+│   ├── adapters.py                # Adapter protocols (event, insight, threat, epoch)
+│   ├── setup_wizard.py            # Interactive setup (ob-setup)
+│   ├── troubleshoot.py            # Diagnostic tool (ob-doctor)
+│   ├── api/                       # Facade layer
+│   │   ├── im_facade.py           # IM facade (default sender injection)
+│   │   ├── memory_facade.py       # Memory facade (default agent injection)
+│   │   └── crypto_facade.py       # Crypto facade (OO key management)
+│   ├── im/                        # IM subsystem
+│   │   ├── __main__.py            # python3 -m open_brain.im entry point
+│   │   ├── store.py               # SQLite WAL-mode message store
+│   │   ├── service.py             # IM CLI service (14 subcommands)
+│   │   └── migrate.py             # JSON-to-SQLite migration
+│   ├── coordination/              # Coordination bus subsystem
+│   │   ├── bus.py                 # CoordinationBus (central nervous system)
+│   │   ├── channel.py             # Channel management + routing
+│   │   ├── protocol.py            # Message envelope + 15 MessageType definitions
+│   │   ├── sequencer.py           # Monotonic message sequencing
+│   │   ├── circuit_breaker.py     # Circuit breaker for fault isolation
+│   │   └── presence.py            # Node presence monitoring + heartbeat
+│   └── tests/                     # Test suite (384+ tests)
 ├── tools/
-│   ├── ob_bridge.py       # File bridge daemon
-│   ├── im_service.py      # Inter-agent messaging
-│   └── projects.json      # Example project registry
+│   ├── ob_bridge.py               # File bridge daemon
+│   └── projects.json              # Example project registry
 ├── templates/
-│   ├── CLAUDE.md.example  # Agent directive template
-│   ├── MEMORY.md.example  # Project memory template
-│   ├── RECOVERY.md.example # Session recovery template
-│   └── SHORTCUTS.md       # Shell alias reference
+│   ├── CLAUDE.md.example           # Agent directive template
+│   ├── MEMORY.md.example           # Project memory template
+│   ├── RECOVERY.md.example         # Session recovery template
+│   └── SHORTCUTS.md               # Shell alias reference
 ├── scripts/
-│   ├── install.sh         # Installer (macOS / Linux)
-│   └── install.ps1        # Installer (Windows)
-├── launchd/               # macOS daemon config
-├── systemd/               # Linux daemon config
-├── pyproject.toml         # Package metadata
-├── ARCHITECTURE.md        # Scale architecture (Scales 0–5) and design rationale
-├── METHODOLOGY.md         # Epistemological methodology and evaluation protocol
-├── LICENSE                # MIT
-└── README.md              # This file
+│   ├── install.sh                 # Installer (macOS / Linux)
+│   └── install.ps1                # Installer (Windows)
+├── launchd/                       # macOS daemon config
+├── systemd/                       # Linux daemon config
+├── pyproject.toml                 # Package metadata
+├── ARCHITECTURE.md                # Scale architecture (Scales 0–5) and design rationale
+├── METHODOLOGY.md                 # Epistemological methodology and evaluation protocol
+├── LICENSE                        # MIT
+└── README.md                      # This file
 ```
 
 ## License
