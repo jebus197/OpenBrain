@@ -1,6 +1,6 @@
 # Open Brain
 
-Persistent, verifiable memory for AI agents — from a single machine to a coordinated network.
+Persistent, verifiable memory for AI agents — from a single machine to a coordinated network. Model-agnostic, vendor-agnostic, chain-agnostic.
 
 Open Brain gives AI agents a shared memory that survives across sessions, across agents, across machines, and across projects. Agents remember what was decided, what was tried, what worked, and what didn't. They coordinate instead of repeating each other's work. The memory is searchable by meaning, not just keywords, so an agent can ask "what did we decide about authentication?" and get the relevant decision even if the word "authentication" was never used.
 
@@ -18,11 +18,41 @@ AI agents are stateless. Every new session starts from zero — previous decisio
 
 3. **Isolation between agents.** When multiple agents work on the same project — a common pattern as teams adopt different tools for different tasks — each agent operates in its own silo. Agent A's insights are invisible to Agent B. Work is duplicated, decisions diverge, and integration failures emerge late.
 
-These are not separate problems — they are the same problem (context loss) repeating at increasing scale: within a session, across sessions, across machines, across projects, across team members, and ultimately across an entire network. Open Brain addresses the underlying problem once: agents write memories to a shared store with a format that is the same at every scale. Any agent can search them semantically or browse recent activity. The integrity layer ensures that memories are tamper-evident and attributable. The result: agents that remember, coordinate, and build on each other's work — and whose memory is independently verifiable.
+4. **Unverifiable reasoning.** No deployed system provides provable, timestamped, tamper-evident reasoning trails. When an agent makes a decision, there is no way to verify after the fact that the decision was made at a specific time, by a specific machine, based on specific context. GDPR Article 22 requires explanations of automated decisions; the EU AI Act demands transparency in AI reasoning. Without verifiable reasoning records, compliance is aspirational, not demonstrable.
+
+These are not separate problems — they are the same problem (context loss and its consequences) repeating at increasing scale: within a session, across sessions, across machines, across projects, across team members, and ultimately across an entire network. Open Brain addresses the underlying problem once: agents write memories to a shared store with a format that is the same at every scale. Any agent can search them semantically or browse recent activity. The integrity layer ensures that memories are tamper-evident and attributable. The result: agents that remember, coordinate, and build on each other's work — and whose memory is independently verifiable.
+
+## The Precision Insight
+
+The field's trajectory for addressing context loss is bigger windows, better summarisation, smarter retrieval-augmented generation. All volume-based approaches. All hit the same selection problem: when an agent recovers from a session boundary, how does it know which memories to retrieve? Summarisation loses detail. RAG depends on the query — but the agent doesn't yet know what it needs, because it has just lost the context that would tell it.
+
+Reasoning checkpoints invert this. A reasoning checkpoint is a memory that records what the agent was thinking, what it needed, what it was working toward, and what comes next. On recovery, the agent reloads exactly what the checkpoint identifies — not a summary, not a search result, but a precise record of the reasoning state at the moment of capture.
+
+The checkpoint IS the retrieval query. It doesn't describe the context to be recovered — it specifies it. This is a category shift from volume (store everything, hope to find the right piece) to precision (store exactly what matters for recovery, and the storage format is the retrieval mechanism).
+
+This is not a claim that checkpoints replace context windows or RAG. They are complementary. The claim is narrower: for the specific problem of reasoning recovery across session boundaries, precision beats volume. The falsification condition: demonstrate a volume-based approach that achieves equivalent reasoning fidelity on recovery without requiring the agent to already know what to search for.
+
+## The Verification Chain
+
+Open Brain does not merely store memories — it makes them evidentially trustworthy. Five cumulative layers, each adding a guarantee:
+
+1. **Content hash** (SHA-256). Every memory is fingerprinted at creation. The hash covers both the raw text and all metadata, serialised deterministically. Any modification — even a single character — changes the hash. This is the same principle as Git commits.
+
+2. **Hash chain**. Each memory records the content hash of the memory that preceded it. The chain makes reordering or deletion detectable: removing or rearranging a memory breaks the link. This is the same principle as blockchain block headers.
+
+3. **Cryptographic signature** (Ed25519). If a keypair is available, the memory is signed at creation. The signature proves which machine created the memory — not by trusting the system, but by verifying the mathematics. Ed25519 is the same scheme used by SSH and Signal.
+
+4. **Merkle epoch** (RFC 6962). Memories are sealed into time-windowed epochs using a binary Merkle tree. Any number of individual content hashes compress into a single root hash. A Merkle inclusion proof demonstrates that a specific memory was part of a specific epoch — in O(log N) space, not O(N).
+
+5. **Blockchain anchor**. The epoch's Merkle root can be written to a public blockchain in one transaction. This provides temporal proof: the epoch (and every memory it contains) existed before the block timestamp. Verification requires only a block explorer — no Open Brain installation.
+
+The designed end-state: any memory stored through Open Brain can be traced from its content hash, through a Merkle inclusion proof, to an on-chain anchor. The combination produces a memory that is not merely persistent but independently verifiable by anyone, anywhere, using standard cryptographic tools.
+
+The `ob prove <UUID>` command assembles a self-contained proof package for any memory. The `ob verify-reasoning <agent>` command runs all five checks against a reasoning chain. Both produce output that a third party can verify with SHA-256, Ed25519, and a block explorer — no Open Brain required.
 
 ## The Approach
 
-Open Brain is one component of a structured approach to human-AI collaboration. The full approach combines three elements:
+Open Brain is one component of a structured approach to human-AI collaboration, addressing the four weaknesses described above. The full approach combines three elements:
 
 - **Persistent memory** (Open Brain) — a shared database where agents store and retrieve decisions, insights, tasks, session summaries, and coordination messages. Searchable by meaning using vector embeddings that run locally with zero API cost.
 
@@ -30,19 +60,13 @@ Open Brain is one component of a structured approach to human-AI collaboration. 
 
 - **A coordination substrate** — four integrated subsystems that degrade gracefully depending on what infrastructure is available. The **IM service** provides SQLite WAL-mode messaging with full-text search, threading, delivery receipts, and retention policies — no server required. The **coordination bus** provides typed pub/sub messaging with circuit breaking, presence monitoring, and message sequencing. The **memory layer** provides semantic search via PostgreSQL and pgvector. The **crypto layer** provides Ed25519 signing and AES-256-GCM encryption. IM, bus, and crypto work with Python alone; only memory requires a database server.
 
-Together, these compensate for the three weaknesses described above. The `templates/` directory contains example configurations for all three elements: `CLAUDE.md.example` (agent directives), `MEMORY.md.example` (project-level persistent context), `RECOVERY.md.example` (session recovery protocol), and `SHORTCUTS.md` (shell aliases). These are opt-in — Open Brain works without them, but no single component addresses all three weaknesses. Memory alone doesn't fix uncritical compliance; directives alone don't survive context loss; coordination alone doesn't fix either. The combination is designed to cover all three, and the claim is falsifiable: adopt it, measure whether your outcomes change, discard what doesn't work.
+Together, these compensate for the four weaknesses described above. The `templates/` directory contains example configurations for all three elements: `CLAUDE.md.example` (agent directives), `MEMORY.md.example` (project-level persistent context), `RECOVERY.md.example` (session recovery protocol), and `SHORTCUTS.md` (shell aliases). These are opt-in — Open Brain works without them, but no single component addresses all four weaknesses. Memory alone doesn't fix uncritical compliance; directives alone don't survive context loss; coordination alone doesn't fix either; and none of them provide verifiable reasoning trails without the integrity layer.
 
-## Design Principle
+The system is built on a single foundational axiom: **all truth should be anchored and independently verifiable.** At the reasoning level, agent directives enforce Popperian falsification — claims must survive deliberate attempts to disprove them. At the data level, the verification chain (described above) enforces the same principle mechanically. None of the cryptographic primitives are novel — content hashing follows Git and Certificate Transparency; Ed25519 is the same scheme used by SSH and Signal; AES-256-GCM is the worldwide standard for authenticated encryption. The contribution is the combination and application: a shared AI memory that is not merely persistent but evidentially trustworthy. The cryptographic heritage runs through Haber and Stornetta (1991), Bitcoin's `OP_RETURN` (2014), and Certificate Transparency (RFC 6962) — the same lineage, applied to AI agent memory.
 
-The system is built on a single foundational axiom: **all truth should be anchored and independently verifiable.**
+[Genesis](https://github.com/jebus197/Project_Genesis) has already proven that blockchain-as-witness works: eight constitutional anchors on Ethereum Sepolia (the [Trust Mint Log](https://github.com/jebus197/Project_Genesis/blob/main/docs/ANCHORS.md)), each a direct SHA-256 hash of the constitution embedded in an Ethereum transaction. Genesis also has a more sophisticated epoch-based commitment system that collects runtime events across four domains into per-domain Merkle trees. The `EpochAdapter` protocol bridges Open Brain's single-domain epoch infrastructure to Genesis's four-domain commitment system. The OB→Genesis bridge is not yet wired end-to-end.
 
-This applies at every layer. At the reasoning level, agent directives enforce Popperian falsification — claims must survive deliberate attempts to disprove them. At the data level, the integrity layer enforces the same principle mechanically: every memory is fingerprinted (content hash), chained to its predecessor (hash chain), and optionally signed by the machine that created it (cryptographic signature). The result is a memory store where tampering, reordering, or impersonation is detectable by anyone with access — not by trusting the system, but by independently verifying the mathematics. Exports can be encrypted for secure transport between machines.
-
-The axiom extends beyond the local machine. Open Brain seals memories into Merkle-rooted epochs — each epoch compresses any number of individual content hashes into a single root hash. That root can be anchored to a public blockchain in one transaction, making the epoch's integrity independently verifiable by anyone with a block explorer. [Genesis](https://github.com/jebus197/Project_Genesis) has already proven that blockchain-as-witness works: eight constitutional anchors on Ethereum Sepolia (the [Trust Mint Log](https://github.com/jebus197/Project_Genesis/blob/main/docs/ANCHORS.md)), each a direct SHA-256 hash of the constitution embedded in an Ethereum transaction — permanent proof that the rules existed in an exact form at an exact time. Genesis also has a more sophisticated epoch-based commitment system (`epoch_service.py`) that collects runtime events across four domains (mission events, trust deltas, governance ballots, review decisions) into per-domain Merkle trees and anchors the combined commitment to chain — this infrastructure is built but has not yet produced on-chain anchors. The `EpochAdapter` protocol bridges Open Brain's single-domain epoch infrastructure to Genesis's four-domain commitment system, so that the designed end-state is: any memory stored through Open Brain can be traced from its content hash through a Merkle proof to an on-chain anchor. The OB→Genesis bridge is not yet wired end-to-end. The cryptographic heritage runs through Haber and Stornetta (1991), Bitcoin's `OP_RETURN` (2014), and Certificate Transparency (RFC 6962) — the same lineage, applied to AI agent memory.
-
-None of these primitives are novel — content hashing follows the same pattern as Git and Certificate Transparency; the signing scheme (Ed25519) is the same one used by SSH and Signal; the encryption (AES-256-GCM) is the worldwide standard for authenticated encryption. The contribution is the combination and application: a shared AI memory that is not merely persistent but evidentially trustworthy.
-
-The falsification methodology itself is documented with the same rigour. [METHODOLOGY.md](METHODOLOGY.md) describes the P-Pass process (iterative Popperian falsification applied to engineering claims), reports a modular-vs-monolithic review comparison (N=1, with advantages and disadvantages honestly documented), and provides a reproducible evaluation protocol so anyone can test — or refute — the claims.
+The claim is falsifiable: adopt it, measure whether your outcomes change, discard what doesn't work.
 
 ## Methodology
 
@@ -168,6 +192,8 @@ if ob.crypto.has_keypair():
 - **Content integrity** — every memory is fingerprinted and chained to the one before it, so any tampering, deletion, or reordering is detectable. Uses the same content-addressing pattern as Git and Certificate Transparency (SHA-256 hash chain)
 - **Cryptographic signing** — each machine can generate a keypair; when present, memories and messages are automatically signed, proving which machine created them — not just a claimed name, but a mathematically verifiable assertion (Ed25519, RFC 8032 — the same scheme used by SSH and Signal)
 - **Blockchain-anchored epochs** — memories are sealed into Merkle-rooted epochs (RFC 6962 binary hash tree, odd-promotion — not Bitcoin's duplication). Each epoch compresses thousands of content hashes into a single root that can be stored in one blockchain transaction. Any individual memory can then be verified against the on-chain root in O(log N) hash computations. The blockchain-as-witness principle is already proven operationally: [Genesis](https://github.com/jebus197/Project_Genesis) has anchored its constitution eight times on Ethereum Sepolia using direct SHA-256 document hashes — each independently verifiable via [Etherscan](https://sepolia.etherscan.io/) with no software or trust required. The `EpochAdapter` protocol bridges OB's Merkle-epoch infrastructure to Genesis's four-domain commitment system, extending the same anchoring principle from single documents to entire memory epochs
+- **Reasoning verification** — proof assembly (`ob prove <UUID>`) produces a self-contained proof package verifiable with SHA-256 + Ed25519 + a block explorer, no Open Brain installation required. Chain retrieval (`ob reasoning <agent>`) returns chronological reasoning checkpoints. Chain verification (`ob verify-reasoning <agent>`) runs five checks: content hash integrity, hash chain continuity, signature validity, epoch inclusion, and epoch chain. Standalone export produces JSON that a third party can independently verify
+- **Blockchain anchor recording** — chain-agnostic anchor metadata storage for sealed epochs. Supports Ethereum (`tx_hash`, `block_number`, `chain_id`), OpenTimestamps (`bitcoin_block`, `ots_proof`), and RFC 3161 timestamps (`tsa_uri`, `timestamp_token`). The `proof_type` key determines the schema
 - **Encrypted export** — memory exports can be passphrase-protected for secure transport between machines. The passphrase is converted to an encryption key using a deliberately slow process that resists automated guessing (AES-256-GCM encryption, NIST SP 800-38D; Scrypt key derivation, RFC 7914)
 - **Portable export/import** — one memory per line, human-readable format (JSONL); fingerprints and signatures travel with the data; verify everything after import with a single command
 - **Adapter protocols** — four `@runtime_checkable` Protocol classes for project integration (event, insight, threat, epoch). Projects implement them; OB never imports project code. Zero coupling by design
@@ -223,6 +249,11 @@ ob migrate                     # Apply pending database migrations
 ob seal-epoch                  # Seal current state into a Merkle-rooted epoch
 ob list-epochs --limit 5       # List recent epochs
 ob verify-epochs               # Verify all epoch Merkle trees
+
+# Reasoning verification
+ob prove <UUID>                # Assemble self-contained proof package for a memory
+ob reasoning cc                # Get chronological reasoning checkpoints for an agent
+ob verify-reasoning cc         # Run 5-check verification on a reasoning chain
 
 # IM service (inter-agent messaging — see IM section below)
 ob im post general "Build complete, 47 tests passing"
@@ -298,7 +329,7 @@ Add to your agent's MCP configuration (e.g. `.claude/settings.json`):
 
 **Windows note:** Use `"python"` instead of `"python3"` — standard Windows Python installs don't create a `python3` executable.
 
-The MCP server exposes six tools: `capture_memory`, `semantic_search`, `list_recent`, `get_pending_tasks`, `update_task_status`, `get_session_context`. These appear natively in the agent's tool palette and operate through the same facades as the CLI.
+The MCP server exposes ten tools: `capture_memory`, `semantic_search`, `list_recent`, `get_pending_tasks`, `update_task_status`, `get_session_context`, `assemble_proof`, `get_reasoning_chain`, `verify_reasoning_chain`, `record_anchor`. These appear natively in the agent's tool palette and operate through the same facades as the CLI.
 
 ### File Bridge (for sandboxed agents)
 
@@ -436,6 +467,7 @@ Any setting can be overridden with `OPEN_BRAIN_` prefix:
 | `blocker` | Something preventing progress |
 | `review` | Code review or assessment |
 | `handoff` | Context transfer between agents |
+| `reasoning_checkpoint` | Reasoning state at a point in time (verifiable) |
 
 ### Shell Aliases
 
@@ -666,10 +698,11 @@ OpenBrain/
 │   ├── hashing.py                 # SHA-256 content hashing + hash chain verification
 │   ├── crypto.py                  # Ed25519 signing + AES-256-GCM encryption
 │   ├── epoch.py                   # Epoch sealing (Merkle-rooted integrity checkpoints)
+│   ├── reasoning.py               # Reasoning verification (proof assembly, chain verification)
 │   ├── merkle.py                  # Merkle tree implementation
 │   ├── sanitise.py                # Input sanitisation (prompt-injection detection)
 │   ├── mcp_server.py              # MCP server (JSON-RPC over stdio)
-│   ├── cli.py                     # CLI interface (16 commands)
+│   ├── cli.py                     # CLI interface (19 commands)
 │   ├── adapters.py                # Adapter protocols (event, insight, threat, epoch)
 │   ├── setup_wizard.py            # Interactive setup (ob-setup)
 │   ├── troubleshoot.py            # Diagnostic tool (ob-doctor)
@@ -689,7 +722,7 @@ OpenBrain/
 │   │   ├── sequencer.py           # Monotonic message sequencing
 │   │   ├── circuit_breaker.py     # Circuit breaker for fault isolation
 │   │   └── presence.py            # Node presence monitoring + heartbeat
-│   └── tests/                     # Test suite (384+ tests)
+│   └── tests/                     # Test suite (390+ tests)
 ├── tools/
 │   ├── ob_bridge.py               # File bridge daemon
 │   └── projects.json              # Example project registry
