@@ -722,7 +722,7 @@ OpenBrain/
 │   │   ├── sequencer.py           # Monotonic message sequencing
 │   │   ├── circuit_breaker.py     # Circuit breaker for fault isolation
 │   │   └── presence.py            # Node presence monitoring + heartbeat
-│   └── tests/                     # Test suite (390+ tests)
+│   └── tests/                     # Test suite (438+ tests)
 ├── tools/
 │   ├── ob_bridge.py               # File bridge daemon
 │   └── projects.json              # Example project registry

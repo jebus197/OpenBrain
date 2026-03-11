@@ -223,13 +223,67 @@ This analysis was subjected to a full p-pass (11 claims tested, 2 falsified and 
 
 ---
 
-## 8. Invitation to Falsify
+## 8. Reasoning Verification Mechanics
 
-This document practices what it describes. The methodology, the observation, and the evaluation protocol are all presented as falsifiable claims:
+Section 7 describes what reasoning checkpoints capture. This section describes how they are verified — the composition layer that connects stored reasoning to cryptographic proof.
+
+### 8.1 Proof Package Assembly
+
+`assemble_proof(memory_id)` composes four subsystems into a single self-contained proof:
+
+1. **Content retrieval** — `db.get_memory()` fetches the raw text, metadata, content hash, signature, and timestamp.
+2. **Hash verification** — recomputes SHA-256 over canonical JSON and compares against the stored `content_hash`.
+3. **Epoch inclusion** — `epoch.prove_memory()` auto-detects the epoch window from `created_at` and returns the Merkle inclusion proof (sibling hashes + directions).
+4. **Anchor lookup** — if the epoch is anchored, the anchor metadata (chain, tx hash, block number) is included.
+
+The result is a `ProofPackage` dataclass containing everything a third party needs to verify a single memory. `ProofPackage.to_json()` produces a JSON string with no OB dependency for verification.
+
+### 8.2 Reasoning Chain Verification
+
+`verify_reasoning_chain(agent, session_id=None)` applies five checks to every checkpoint in an agent's reasoning chain:
+
+| Check | What it verifies | Failure means |
+|---|---|---|
+| Content hash | SHA-256 of stored text matches `content_hash` | Content was modified after storage |
+| Chain continuity | Each checkpoint's `previous_hash` matches the preceding checkpoint's `content_hash` | A checkpoint was deleted, inserted, or reordered |
+| Signature validity | Ed25519 signature over canonical content verifies against the node's public key | Content was not signed by this node, or was modified after signing |
+| Epoch inclusion | Merkle proof verifies against the epoch's `merkle_root` | Memory was not in the epoch when it was sealed |
+| Epoch chain | Sequential epochs link via `previous_epoch_root` | An epoch was deleted or tampered with |
+
+The result is a `ChainVerification` dataclass reporting: total checkpoints, valid count, hash chain integrity, signature counts (valid/invalid/missing), epoch proof counts, anchor count, and a list of specific breaks with memory IDs and check types.
+
+### 8.3 Standalone Export
+
+`export_reasoning_proof(agent, session_id=None)` produces a self-contained JSON document that a third party can verify without installing Open Brain. The export includes:
+
+- Ordered checkpoints with raw text, metadata, content hashes, hash chain links, and signatures
+- The node's Ed25519 public key (PEM format)
+- Merkle inclusion proofs per checkpoint
+- Epoch data (roots, memory counts, chain links, anchor metadata)
+- Verification instructions specifying the exact algorithms (SHA-256, Ed25519 RFC 8032, RFC 6962 Merkle trees)
+
+A verifier needs only: a SHA-256 implementation, an Ed25519 library, and a block explorer for anchor verification. No Open Brain code is required.
+
+### 8.4 Anchor Metadata
+
+Blockchain anchoring is chain-agnostic. The `anchor_metadata` JSONB column stores a `proof_type` key that determines the schema:
+
+- **ethereum**: `tx_hash`, `block_number`, `chain_id`, `verifier_uri`
+- **ots** (OpenTimestamps): `bitcoin_block`, `ots_proof`
+- **rfc3161** (trusted timestamping): `tsa_uri`, `timestamp_token`
+
+`record_anchor(epoch_id, anchored_at, anchor_metadata)` stores the anchor. `get_unanchored_epochs()` returns epochs awaiting anchoring. The bridge between epoch sealing and on-chain submission is the designed integration point for Genesis or any other anchoring system.
+
+---
+
+## 9. Invitation to Falsify
+
+This document practices what it describes. The methodology, the observation, the evaluation protocol, and the verification mechanics are all presented as falsifiable claims:
 
 - **The methodology claim** (Section 2) — that iterative falsification produces more robust engineering outcomes than uncritical acceptance — is testable by comparing defect rates in projects that apply p-passes against those that do not.
 - **The observation** (Section 3) — that modular p-passes produced structural process advantages in one instance — is honestly bounded as N=1, with disadvantages documented alongside advantages.
 - **The protocol** (Section 4) — is published in full so that anyone can execute it, reproduce or refute the observation, and extend the methodology.
+- **The verification chain** (Sections 7-8) — each layer's guarantee is individually testable. Content hash integrity: modify stored text, verify detection. Chain continuity: delete or reorder a checkpoint, verify detection. Signature validity: alter signed content, verify rejection. Merkle proofs: tamper with an epoch, verify proof failure. Anchor verification: look up the tx hash on a block explorer.
 
 If the modular advantage does not replicate, that is a result, not a failure. If the protocol itself proves inadequate (insufficient statistical power, scoring rubric too subjective, seeded bugs unrepresentative), that too is a result — and the protocol should be revised. The commitment is to the process of falsification, not to any particular outcome.
 
