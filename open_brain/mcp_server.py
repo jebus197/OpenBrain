@@ -60,6 +60,10 @@ TOOLS = [
                     "type": "string",
                     "enum": ["low", "medium", "high", "critical"],
                 },
+                "project": {
+                    "type": "string",
+                    "description": "Project name for scoping (e.g. 'genesis', 'open_brain')",
+                },
             },
             "required": ["text", "source_agent", "memory_type"],
         },
@@ -78,6 +82,7 @@ TOOLS = [
                 "source_agent": {"type": "string"},
                 "memory_type": {"type": "string"},
                 "area": {"type": "string"},
+                "project": {"type": "string"},
             },
             "required": ["query"],
         },
@@ -92,6 +97,7 @@ TOOLS = [
                 "source_agent": {"type": "string"},
                 "memory_type": {"type": "string"},
                 "area": {"type": "string"},
+                "project": {"type": "string"},
             },
         },
     ),
@@ -105,6 +111,7 @@ TOOLS = [
             "type": "object",
             "properties": {
                 "assigned_to": {"type": "string"},
+                "project": {"type": "string"},
             },
         },
     ),
@@ -146,6 +153,10 @@ TOOLS = [
                 "agent": {
                     "type": "string",
                     "description": "Agent identifier to get context for",
+                },
+                "project": {
+                    "type": "string",
+                    "description": "Project name to scope context to",
                 },
             },
             "required": ["agent"],
@@ -275,6 +286,7 @@ def _dispatch(name: str, args: dict) -> Any:
             action_status=args.get("action_status"),
             assigned_to=args.get("assigned_to"),
             priority=args.get("priority"),
+            project=args.get("project"),
         )
         return {"id": mem_id, "status": "stored"}
 
@@ -286,6 +298,7 @@ def _dispatch(name: str, args: dict) -> Any:
             source_agent=args.get("source_agent"),
             memory_type=args.get("memory_type"),
             area=args.get("area"),
+            project=args.get("project"),
         )
         return _throttle(results)
 
@@ -295,11 +308,13 @@ def _dispatch(name: str, args: dict) -> Any:
             source_agent=args.get("source_agent"),
             memory_type=args.get("memory_type"),
             area=args.get("area"),
+            project=args.get("project"),
         )
 
     elif name == "get_pending_tasks":
         return db.get_pending_tasks(
             assigned_to=args.get("assigned_to"),
+            project=args.get("project"),
         )
 
     elif name == "update_task_status":
@@ -312,7 +327,10 @@ def _dispatch(name: str, args: dict) -> Any:
         return {"updated": updated}
 
     elif name == "get_session_context":
-        return db.get_session_context(agent=args["agent"])
+        return db.get_session_context(
+            agent=args["agent"],
+            project=args.get("project"),
+        )
 
     elif name == "assemble_proof":
         from open_brain.reasoning import assemble_proof as _assemble_proof

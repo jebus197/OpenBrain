@@ -45,6 +45,7 @@ def capture_memory(
     action_status: Optional[str] = None,
     assigned_to: Optional[str] = None,
     priority: Optional[str] = None,
+    project: Optional[str] = None,
     extra_metadata: Optional[Dict[str, Any]] = None,
 ) -> str:
     """Full capture pipeline: validate -> sanitise -> embed -> store.
@@ -96,6 +97,8 @@ def capture_memory(
         metadata["assigned_to"] = assigned_to
     if priority:
         metadata["priority"] = priority
+    if project:
+        metadata["project"] = project
     if extra_metadata:
         metadata.update(extra_metadata)
 

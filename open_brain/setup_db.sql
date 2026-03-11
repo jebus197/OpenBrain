@@ -42,6 +42,9 @@ CREATE INDEX IF NOT EXISTS idx_memories_action_status
 CREATE INDEX IF NOT EXISTS idx_memories_area
     ON memories USING gin ((metadata -> 'area'));
 
+CREATE INDEX IF NOT EXISTS idx_memories_project
+    ON memories USING gin ((metadata -> 'project'));
+
 -- Temporal ordering
 CREATE INDEX IF NOT EXISTS idx_memories_created_at
     ON memories (created_at DESC);

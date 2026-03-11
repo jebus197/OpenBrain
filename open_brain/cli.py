@@ -37,6 +37,7 @@ def main(argv=None):
     _assignee_choices = (config.get_valid_agents() + ["all"]) if config.get_valid_agents() else None
     p_cap.add_argument("--assigned-to", choices=_assignee_choices)
     p_cap.add_argument("--priority", choices=["low", "medium", "high", "critical"])
+    p_cap.add_argument("--project", help="Project name for scoping")
 
     # search
     p_search = sub.add_parser("search", help="Semantic search")
@@ -58,6 +59,7 @@ def main(argv=None):
     # pending-tasks
     p_pending = sub.add_parser("pending-tasks", help="Get pending/blocked tasks")
     p_pending.add_argument("--agent", dest="assigned_to")
+    p_pending.add_argument("--project", help="Filter by project name")
 
     # update-task
     p_update = sub.add_parser("update-task", help="Update task status")
@@ -70,6 +72,7 @@ def main(argv=None):
     # session-context
     p_ctx = sub.add_parser("session-context", help="Get startup context for an agent")
     p_ctx.add_argument("--agent", required=True, choices=config.get_valid_agents() or None)
+    p_ctx.add_argument("--project", help="Scope context to a project")
 
     # export
     p_export = sub.add_parser("export", help="Export memories to JSONL file")
@@ -216,6 +219,7 @@ def _cmd_capture(args):
         action_status=args.action_status,
         assigned_to=args.assigned_to,
         priority=args.priority,
+        project=args.project,
     )
     print(f"Stored: {mem_id}")
 
@@ -251,7 +255,10 @@ def _cmd_list_recent(args):
 
 
 def _cmd_pending_tasks(args):
-    results = db.get_pending_tasks(assigned_to=args.assigned_to)
+    results = db.get_pending_tasks(
+        assigned_to=args.assigned_to,
+        project=getattr(args, "project", None),
+    )
     if not results:
         print("No pending or blocked tasks.")
         return
@@ -282,7 +289,10 @@ def _cmd_update_task(args):
 
 
 def _cmd_session_context(args):
-    ctx = db.get_session_context(agent=args.agent)
+    ctx = db.get_session_context(
+        agent=args.agent,
+        project=getattr(args, "project", None),
+    )
 
     print(f"=== Session Context for {args.agent.upper()} ===\n")
 

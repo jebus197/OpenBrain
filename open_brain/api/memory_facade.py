@@ -34,6 +34,7 @@ class MemoryFacade:
         assigned_to: Optional[str] = None,
         action_status: Optional[str] = None,
         priority: Optional[str] = None,
+        project: Optional[str] = None,
     ) -> str:
         """Capture a memory.  Returns the UUID string."""
         from open_brain import capture as cap
@@ -46,6 +47,7 @@ class MemoryFacade:
             assigned_to=assigned_to,
             action_status=action_status,
             priority=priority,
+            project=project,
         )
 
     def update_task(
@@ -78,6 +80,7 @@ class MemoryFacade:
         area: Optional[str] = None,
         memory_type: Optional[str] = None,
         source_agent: Optional[str] = None,
+        project: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
         """Semantic search across memories."""
         from open_brain import db
@@ -88,6 +91,7 @@ class MemoryFacade:
             area=area,
             memory_type=memory_type,
             source_agent=source_agent,
+            project=project,
         )
 
     def recent(
@@ -97,6 +101,7 @@ class MemoryFacade:
         area: Optional[str] = None,
         memory_type: Optional[str] = None,
         source_agent: Optional[str] = None,
+        project: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
         """List recent memories (newest first)."""
         from open_brain import db
@@ -106,21 +111,25 @@ class MemoryFacade:
             area=area,
             memory_type=memory_type,
             source_agent=source_agent,
+            project=project,
         )
 
     def pending_tasks(
         self,
         *,
         assigned_to: Optional[str] = None,
+        project: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
         """Get pending and blocked tasks."""
         from open_brain import db
 
-        return db.get_pending_tasks(assigned_to=assigned_to)
+        return db.get_pending_tasks(assigned_to=assigned_to, project=project)
 
     def session_context(
         self,
         agent: Optional[str] = None,
+        *,
+        project: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Get composite startup context for an agent.
 
@@ -129,7 +138,7 @@ class MemoryFacade:
         """
         from open_brain import db
 
-        return db.get_session_context(agent or self._agent)
+        return db.get_session_context(agent or self._agent, project=project)
 
     def export(
         self,

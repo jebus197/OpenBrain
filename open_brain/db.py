@@ -255,10 +255,12 @@ def list_recent(
 
 def get_pending_tasks(
     assigned_to: Optional[str] = None,
+    project: Optional[str] = None,
 ) -> List[Dict[str, Any]]:
     """Get tasks with action_status in ('pending', 'blocked').
 
     If assigned_to is given, returns tasks assigned to that agent OR 'all'.
+    If project is given, filters to tasks for that project.
     """
     conditions = [
         "metadata->>'memory_type' = 'task'",
@@ -271,6 +273,9 @@ def get_pending_tasks(
             "(metadata->>'assigned_to' = %s OR metadata->>'assigned_to' = 'all')"
         )
         params.append(assigned_to)
+    if project:
+        conditions.append("metadata->>'project' = %s")
+        params.append(project)
 
     where_sql = "WHERE " + " AND ".join(conditions)
 
@@ -291,8 +296,13 @@ def get_pending_tasks(
     return [_row_to_dict(r) for r in rows]
 
 
-def get_session_context(agent: str) -> Dict[str, Any]:
+def get_session_context(
+    agent: str,
+    project: Optional[str] = None,
+) -> Dict[str, Any]:
     """Composite context for an agent starting a session.
+
+    If project is given, all queries are scoped to that project.
 
     Returns:
         {
@@ -311,6 +321,13 @@ def get_session_context(agent: str) -> Dict[str, Any]:
         "last_reasoning_checkpoint": None,
     }
 
+    # Project filter clause (reused across all 5 queries)
+    proj_clause = ""
+    proj_param: tuple = ()
+    if project:
+        proj_clause = " AND metadata->>'project' = %s"
+        proj_param = (project,)
+
     with read_conn() as conn:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
             # Discover other agents — use registry if available, else query DB
@@ -318,55 +335,60 @@ def get_session_context(agent: str) -> Dict[str, Any]:
                 other_agents = [a for a in config.REGISTERED_AGENTS if a != agent]
             else:
                 cur.execute(
-                    """
+                    f"""
                     SELECT DISTINCT metadata->>'source_agent' AS agent
                     FROM memories
                     WHERE metadata->>'source_agent' IS NOT NULL
                       AND metadata->>'source_agent' != %s
+                      {proj_clause}
                     """,
-                    (agent,),
+                    (agent, *proj_param),
                 )
                 other_agents = [r["agent"] for r in cur.fetchall()]
 
             # 1. Pending tasks for this agent or 'all'
             cur.execute(
-                """
+                f"""
                 SELECT id, raw_text, metadata, created_at
                 FROM memories
                 WHERE metadata->>'memory_type' = 'task'
                   AND metadata->>'action_status' = 'pending'
                   AND (metadata->>'assigned_to' = %s OR metadata->>'assigned_to' = 'all')
+                  {proj_clause}
                 ORDER BY created_at DESC
                 LIMIT 20
                 """,
-                (agent,),
+                (agent, *proj_param),
             )
             result["pending_tasks"] = [_row_to_dict(r) for r in cur.fetchall()]
 
             # 2. All blocked tasks
             cur.execute(
-                """
+                f"""
                 SELECT id, raw_text, metadata, created_at
                 FROM memories
                 WHERE metadata->>'memory_type' = 'task'
                   AND metadata->>'action_status' = 'blocked'
+                  {proj_clause}
                 ORDER BY created_at DESC
                 LIMIT 20
                 """,
+                proj_param if proj_param else None,
             )
             result["blocked_tasks"] = [_row_to_dict(r) for r in cur.fetchall()]
 
             # 3. Last 5 from each other agent
             for other in other_agents:
                 cur.execute(
-                    """
+                    f"""
                     SELECT id, raw_text, metadata, created_at
                     FROM memories
                     WHERE metadata->>'source_agent' = %s
+                      {proj_clause}
                     ORDER BY created_at DESC
                     LIMIT 5
                     """,
-                    (other,),
+                    (other, *proj_param),
                 )
                 result["other_agents_recent"].extend(
                     [_row_to_dict(r) for r in cur.fetchall()]
@@ -374,15 +396,16 @@ def get_session_context(agent: str) -> Dict[str, Any]:
 
             # 4. Most recent session_summary from this agent
             cur.execute(
-                """
+                f"""
                 SELECT id, raw_text, metadata, created_at
                 FROM memories
                 WHERE metadata->>'source_agent' = %s
                   AND metadata->>'memory_type' = 'session_summary'
+                  {proj_clause}
                 ORDER BY created_at DESC
                 LIMIT 1
                 """,
-                (agent,),
+                (agent, *proj_param),
             )
             row = cur.fetchone()
             if row:
@@ -390,15 +413,16 @@ def get_session_context(agent: str) -> Dict[str, Any]:
 
             # 5. Most recent reasoning checkpoint from this agent
             cur.execute(
-                """
+                f"""
                 SELECT id, raw_text, metadata, created_at
                 FROM memories
                 WHERE metadata->>'source_agent' = %s
                   AND metadata->>'memory_type' = 'reasoning_checkpoint'
+                  {proj_clause}
                 ORDER BY created_at DESC
                 LIMIT 1
                 """,
-                (agent,),
+                (agent, *proj_param),
             )
             row = cur.fetchone()
             if row:
