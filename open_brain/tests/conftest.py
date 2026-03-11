@@ -19,5 +19,6 @@ def _clean_db():
     conn.autocommit = True
     with conn.cursor() as cur:
         cur.execute("TRUNCATE memories")
+        cur.execute("TRUNCATE epochs")
     conn.close()
     yield

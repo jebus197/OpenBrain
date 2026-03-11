@@ -186,3 +186,26 @@ def test_reasoning_checkpoint_agent_isolation():
 
     ctx = db.get_session_context("cc")
     assert ctx["last_reasoning_checkpoint"] is None
+
+
+# ---------------------------------------------------------------------------
+# get_memory
+# ---------------------------------------------------------------------------
+
+
+def test_get_memory_returns_full_row():
+    meta = {"source_agent": "cc", "memory_type": "decision", "area": "general"}
+    mem_id = db.insert_memory("Get memory test", _dummy_embedding(99), meta)
+
+    row = db.get_memory(mem_id)
+    assert row is not None
+    assert row["id"] == mem_id
+    assert row["raw_text"] == "Get memory test"
+    assert row["metadata"]["source_agent"] == "cc"
+    assert "created_at" in row
+    assert "content_hash" in row
+
+
+def test_get_memory_returns_none_for_missing():
+    row = db.get_memory("00000000-0000-0000-0000-000000000000")
+    assert row is None

@@ -79,3 +79,68 @@ def test_throttle():
     # Total tokens should be under budget
     total = sum(config.estimate_tokens(r["raw_text"]) for r in throttled)
     assert total <= config.TOKEN_BUDGET
+
+
+# ---------------------------------------------------------------------------
+# Reasoning / proof MCP tools
+# ---------------------------------------------------------------------------
+
+
+def test_assemble_proof_dispatch():
+    """assemble_proof tool returns proof package for existing memory."""
+    capture = _dispatch("capture_memory", {
+        "text": "MCP proof test",
+        "source_agent": "cc",
+        "memory_type": "reasoning_checkpoint",
+        "area": "general",
+    })
+    mem_id = capture["id"]
+
+    result = _dispatch("assemble_proof", {"memory_id": mem_id})
+    assert result["memory_id"] == mem_id
+    assert result["raw_text"] == "MCP proof test"
+    assert result["content_hash"].startswith("sha256:")
+
+
+def test_assemble_proof_dispatch_missing():
+    result = _dispatch("assemble_proof", {
+        "memory_id": "00000000-0000-0000-0000-000000000000",
+    })
+    assert "error" in result
+
+
+def test_get_reasoning_chain_dispatch():
+    _dispatch("capture_memory", {
+        "text": "MCP chain test",
+        "source_agent": "cc",
+        "memory_type": "reasoning_checkpoint",
+        "area": "general",
+    })
+
+    result = _dispatch("get_reasoning_chain", {"agent": "cc", "limit": 10})
+    assert isinstance(result, list)
+    assert len(result) >= 1
+    assert result[0]["raw_text"] == "MCP chain test"
+
+
+def test_verify_reasoning_chain_dispatch():
+    _dispatch("capture_memory", {
+        "text": "MCP verify test",
+        "source_agent": "cc",
+        "memory_type": "reasoning_checkpoint",
+        "area": "general",
+    })
+
+    result = _dispatch("verify_reasoning_chain", {"agent": "cc"})
+    assert "total" in result
+    assert result["total"] >= 1
+    assert "hash_chain_intact" in result
+
+
+def test_record_anchor_dispatch_missing_epoch():
+    result = _dispatch("record_anchor", {
+        "epoch_id": "00000000-0000-0000-0000-000000000000",
+        "anchored_at": "2026-01-01T00:00:00+00:00",
+        "anchor_metadata": {"proof_type": "ethereum", "tx_hash": "0x0"},
+    })
+    assert result["updated"] is False

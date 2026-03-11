@@ -636,6 +636,10 @@ def _row_to_dict(row) -> Dict[str, Any]:
         d["created_at"] = d["created_at"].isoformat()
     if "distance" in d:
         d["distance"] = float(d["distance"])
+    # Convert bytes fields (e.g. signature from BYTEA columns) to hex strings
+    for key in ("signature", "public_key"):
+        if key in d and isinstance(d[key], (bytes, memoryview)):
+            d[key] = bytes(d[key]).hex()
     # metadata is already a dict from JSONB
     return d
 

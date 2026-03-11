@@ -82,3 +82,55 @@ def test_pending_tasks_roundtrip():
     r = _run(["pending-tasks", "--agent", "cc"])
     assert r.returncode == 0
     assert "No pending" in r.stdout
+
+
+# ---------------------------------------------------------------------------
+# Reasoning CLI commands
+# ---------------------------------------------------------------------------
+
+
+def test_prove_returns_proof():
+    """prove command outputs proof package for a stored memory."""
+    r = _run(["capture", "CLI prove test", "--agent", "cc",
+              "--type", "reasoning_checkpoint", "--area", "general"])
+    assert r.returncode == 0
+    mem_id = r.stdout.strip().split("Stored: ")[1]
+
+    r = _run(["prove", mem_id])
+    assert r.returncode == 0
+    assert "Proof package" in r.stdout
+    assert "Content hash: sha256:" in r.stdout
+
+
+def test_prove_missing_memory():
+    r = _run(["prove", "00000000-0000-0000-0000-000000000000"])
+    assert r.returncode != 0
+    assert "not found" in r.stderr.lower()
+
+
+def test_reasoning_chain():
+    _run(["capture", "CLI reasoning step 1", "--agent", "cc",
+          "--type", "reasoning_checkpoint", "--area", "general"])
+    _run(["capture", "CLI reasoning step 2", "--agent", "cc",
+          "--type", "reasoning_checkpoint", "--area", "general"])
+
+    r = _run(["reasoning", "cc"])
+    assert r.returncode == 0
+    assert "Reasoning chain" in r.stdout
+    assert "checkpoints" in r.stdout
+
+
+def test_reasoning_empty_agent():
+    r = _run(["reasoning", "nonexistent_agent_xyz"])
+    assert r.returncode == 0
+    assert "No reasoning checkpoints" in r.stdout
+
+
+def test_verify_reasoning():
+    _run(["capture", "CLI verify step", "--agent", "cc",
+          "--type", "reasoning_checkpoint", "--area", "general"])
+
+    r = _run(["verify-reasoning", "cc"])
+    assert r.returncode == 0
+    assert "verification" in r.stdout.lower()
+    assert "Chain integrity: OK" in r.stdout

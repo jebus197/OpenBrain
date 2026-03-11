@@ -107,9 +107,14 @@ def assemble_proof(memory_id: str) -> Optional[ProofPackage]:
     try:
         from open_brain.crypto import get_public_key_pem, has_keypair
         if has_keypair():
-            public_key_pem = get_public_key_pem()
+            pem_bytes = get_public_key_pem()
+            public_key_pem = pem_bytes.decode("ascii") if isinstance(pem_bytes, bytes) else pem_bytes
     except Exception:
         pass
+
+    # Ensure signature is a string (hex) for JSON serialisation
+    if isinstance(signature, (bytes, memoryview)):
+        signature = bytes(signature).hex()
 
     # Merkle inclusion proof (auto-detects epoch window)
     merkle_proof = None
@@ -413,7 +418,8 @@ def export_reasoning_proof(
     try:
         from open_brain.crypto import get_public_key_pem, has_keypair
         if has_keypair():
-            public_key_pem = get_public_key_pem()
+            pem_bytes = get_public_key_pem()
+            public_key_pem = pem_bytes.decode("ascii") if isinstance(pem_bytes, bytes) else pem_bytes
     except Exception:
         pass
 
