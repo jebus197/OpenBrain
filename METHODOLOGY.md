@@ -203,7 +203,27 @@ The protocol draws on established methodologies from software engineering and AI
 
 ---
 
-## 7. Invitation to Falsify
+## 7. Reasoning State as Verified Memory
+
+LLM context loss has two components: memory loss (forgetting facts) and reasoning state loss (forgetting what the agent was thinking — plan, progress, rationale, active hypotheses, position in a multi-step process). Open Brain's persistent memory addresses the first. Reasoning checkpoints address the second.
+
+**The key insight:** LLM reasoning state IS text. Unlike CPU register state (opaque binary), an LLM's chain of thought is expressed in the same medium the memory store uses. There is no impedance mismatch between "what the model is thinking" and "what Open Brain can store." Therefore: store reasoning checkpoints as standard OB memories → seal into Merkle epochs → anchor to blockchain. The same infrastructure handles both facts and reasoning.
+
+**What's captured:** Plan state, progress, rationale, hypotheses, key decisions, context dependencies — everything the model can introspect and express as text at checkpoint time. A reasoning checkpoint is stored with `memory_type='reasoning_checkpoint'` and retrieved automatically via `get_session_context()`.
+
+**What's not captured:** Sub-token attention patterns and implicit contextual weighting — the aspects of reasoning the model cannot introspect on. These are non-capturable as text (fundamental limit of introspection) and non-recoverable by any other method (continuation summaries, extended context windows, RAG). This is the shared irreducible floor across all approaches, not a comparative disadvantage.
+
+**Checkpoint frequency:** The default is every N=5 turns (configurable). The defensible bounds are N ∈ [2, 10]: below N=2, overhead is disproportionate for mechanical turns; above N=10, granularity becomes coarser than the reasoning phases it aims to preserve. The optimal N is empirically determinable via the tokenomics framing: E[total_cost] = (turns/N) × cost_per_checkpoint + P(compaction) × reasoning_loss(N) — a classic inventory problem with measurable parameters.
+
+**Verification guarantee:** If a reasoning checkpoint has content hash H, is in an epoch with Merkle root R, and R is anchored at block B: H proves the exact text existed (SHA-256), the Merkle proof proves inclusion in the epoch (RFC 6962), and block B proves temporal existence (blockchain consensus). What is NOT provable: correctness, completeness, or honesty of the reasoning. No system — human or AI — can provide these guarantees for any reasoning process.
+
+**The precision insight:** Reasoning checkpoints convert context recovery from volume-based ("reload everything possibly relevant") to precision-based ("reload exactly what the checkpoint identifies as needed"). The checkpoint IS the retrieval query. This breaks the equivalence between "which memories to load" and "which history to keep during compaction" — the checkpoint resolves the selection problem.
+
+This analysis was subjected to a full p-pass (11 claims tested, 2 falsified and corrected, 9 survived — details in the project's plan archive). The "at decision points" checkpoint trigger was falsified as unfalsifiable (no objective definition of "decision point" for autoregressive models) and removed.
+
+---
+
+## 8. Invitation to Falsify
 
 This document practices what it describes. The methodology, the observation, and the evaluation protocol are all presented as falsifiable claims:
 

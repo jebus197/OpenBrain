@@ -146,3 +146,43 @@ def test_session_context():
     assert len(ctx["other_agents_recent"]) >= 1  # CX insight + CX blocked task
     assert ctx["last_session_summary"] is not None
     assert "CC session summary" in ctx["last_session_summary"]["raw_text"]
+    assert ctx["last_reasoning_checkpoint"] is None  # none inserted
+
+
+def test_session_context_with_reasoning_checkpoint():
+    """Reasoning checkpoint appears in session context when one exists."""
+    db.insert_memory("Current plan: investigating hash chain bug", _dummy_embedding(1), {
+        "source_agent": "cc", "memory_type": "reasoning_checkpoint", "area": "general",
+    })
+    db.insert_memory("CC session summary", _dummy_embedding(2), {
+        "source_agent": "cc", "memory_type": "session_summary", "area": "general",
+    })
+
+    ctx = db.get_session_context("cc")
+    assert ctx["last_reasoning_checkpoint"] is not None
+    assert "hash chain bug" in ctx["last_reasoning_checkpoint"]["raw_text"]
+    assert ctx["last_session_summary"] is not None
+
+
+def test_reasoning_checkpoint_returns_most_recent():
+    """When multiple reasoning checkpoints exist, session context returns the latest."""
+    db.insert_memory("Old checkpoint: started analysis", _dummy_embedding(1), {
+        "source_agent": "cc", "memory_type": "reasoning_checkpoint", "area": "general",
+    })
+    db.insert_memory("New checkpoint: analysis complete, writing tests", _dummy_embedding(2), {
+        "source_agent": "cc", "memory_type": "reasoning_checkpoint", "area": "general",
+    })
+
+    ctx = db.get_session_context("cc")
+    assert ctx["last_reasoning_checkpoint"] is not None
+    assert "writing tests" in ctx["last_reasoning_checkpoint"]["raw_text"]
+
+
+def test_reasoning_checkpoint_agent_isolation():
+    """Reasoning checkpoint from another agent does not appear in session context."""
+    db.insert_memory("CX reasoning state", _dummy_embedding(1), {
+        "source_agent": "cx", "memory_type": "reasoning_checkpoint", "area": "general",
+    })
+
+    ctx = db.get_session_context("cc")
+    assert ctx["last_reasoning_checkpoint"] is None

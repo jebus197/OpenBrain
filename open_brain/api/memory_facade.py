@@ -122,7 +122,11 @@ class MemoryFacade:
         self,
         agent: Optional[str] = None,
     ) -> Dict[str, Any]:
-        """Get composite startup context for an agent."""
+        """Get composite startup context for an agent.
+
+        Returns pending/blocked tasks, other agents' recent activity,
+        last session summary, and last reasoning checkpoint.
+        """
         from open_brain import db
 
         return db.get_session_context(agent or self._agent)

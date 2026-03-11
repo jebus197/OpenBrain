@@ -158,9 +158,9 @@ if ob.crypto.has_keypair():
 
 - **Semantic search** — find memories by meaning, not keywords (pgvector + BAAI/bge-small-en-v1.5, 384-dimensional embeddings, runs locally, zero API cost)
 - **Multi-agent coordination** — any number of agents share one brain, each identified by name
-- **Structured memory types** — decisions, tasks, insights, session summaries, blockers, reviews, handoffs
+- **Structured memory types** — decisions, tasks, insights, session summaries, blockers, reviews, handoffs, reasoning checkpoints
 - **Task lifecycle** — pending → in_progress → blocked → completed → cancelled, with assignments
-- **Session context** — agents get pending tasks, blocked items, and recent activity from other agents on startup
+- **Session context** — agents get pending tasks, blocked items, recent activity from other agents, and their last reasoning checkpoint on startup
 - **Three access methods** — MCP server (for Claude Code and compatible agents), CLI (for everything), file bridge (for sandboxed agents)
 - **IM service** — SQLite WAL-mode messaging with full-text search (FTS5), threading, delivery receipts, retention policies, and Ed25519 signing. Channels are typed, messages are content-hashed, and the schema supports TTL-based expiry
 - **Coordination bus** — typed pub/sub messaging with circuit breaking, presence monitoring, and message sequencing. 15 message types across system, memory, intelligence, and task domains. Sub-millisecond dispatch (in-process asyncio, zero serialisation)

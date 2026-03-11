@@ -145,6 +145,7 @@ VALID_MEMORY_TYPES = frozenset({
     "blocker",
     "review",
     "handoff",
+    "reasoning_checkpoint",
 })
 
 VALID_ACTION_STATUSES = frozenset({

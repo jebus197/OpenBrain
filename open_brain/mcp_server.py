@@ -137,8 +137,8 @@ TOOLS = [
         name="get_session_context",
         description=(
             "Get composite startup context for an agent: pending tasks, "
-            "blocked tasks, recent activity from other agents, and the "
-            "agent's last session summary."
+            "blocked tasks, recent activity from other agents, the "
+            "agent's last session summary, and last reasoning checkpoint."
         ),
         inputSchema={
             "type": "object",

@@ -300,6 +300,7 @@ def get_session_context(agent: str) -> Dict[str, Any]:
             "blocked_tasks": [...],
             "other_agents_recent": [...],
             "last_session_summary": {...} or None,
+            "last_reasoning_checkpoint": {...} or None,
         }
     """
     result: Dict[str, Any] = {
@@ -307,6 +308,7 @@ def get_session_context(agent: str) -> Dict[str, Any]:
         "blocked_tasks": [],
         "other_agents_recent": [],
         "last_session_summary": None,
+        "last_reasoning_checkpoint": None,
     }
 
     with read_conn() as conn:
@@ -385,6 +387,22 @@ def get_session_context(agent: str) -> Dict[str, Any]:
             row = cur.fetchone()
             if row:
                 result["last_session_summary"] = _row_to_dict(row)
+
+            # 5. Most recent reasoning checkpoint from this agent
+            cur.execute(
+                """
+                SELECT id, raw_text, metadata, created_at
+                FROM memories
+                WHERE metadata->>'source_agent' = %s
+                  AND metadata->>'memory_type' = 'reasoning_checkpoint'
+                ORDER BY created_at DESC
+                LIMIT 1
+                """,
+                (agent,),
+            )
+            row = cur.fetchone()
+            if row:
+                result["last_reasoning_checkpoint"] = _row_to_dict(row)
 
     return result
 
