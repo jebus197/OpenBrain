@@ -55,9 +55,11 @@ class EpochRecord:
     previous_epoch_root: str    # Chain link to prior epoch
     sealed_at: str              # ISO 8601 when sealed
     sealed_by: str              # node_id that sealed
+    anchored_at: Optional[str] = None   # ISO 8601 when anchored
+    anchor_metadata: Optional[Dict[str, Any]] = None  # Chain-agnostic
 
     def to_dict(self) -> Dict[str, Any]:
-        return {
+        d = {
             "epoch_id": self.epoch_id,
             "window_start": self.window_start,
             "window_end": self.window_end,
@@ -67,7 +69,10 @@ class EpochRecord:
             "previous_epoch_root": self.previous_epoch_root,
             "sealed_at": self.sealed_at,
             "sealed_by": self.sealed_by,
+            "anchored_at": self.anchored_at,
+            "anchor_metadata": self.anchor_metadata,
         }
+        return d
 
 
 # Sentinel for the first epoch in the chain.
@@ -225,7 +230,7 @@ def get_epoch(
                 """
                 SELECT epoch_id, window_start, window_end, merkle_root,
                        memory_count, leaf_hashes, previous_epoch_root,
-                       sealed_at, sealed_by
+                       sealed_at, sealed_by, anchored_at, anchor_metadata
                 FROM epochs
                 WHERE window_start = %s AND window_end = %s
                 """,
@@ -235,6 +240,10 @@ def get_epoch(
 
     if not row:
         return None
+
+    anchor_meta = row[10]
+    if isinstance(anchor_meta, str):
+        anchor_meta = json.loads(anchor_meta)
 
     return EpochRecord(
         epoch_id=row[0],
@@ -246,6 +255,8 @@ def get_epoch(
         previous_epoch_root=row[6],
         sealed_at=row[7],
         sealed_by=row[8],
+        anchored_at=row[9],
+        anchor_metadata=anchor_meta,
     )
 
 
@@ -258,7 +269,8 @@ def list_epochs(limit: int = 50) -> List[Dict[str, Any]]:
             cur.execute(
                 """
                 SELECT epoch_id, window_start, window_end, merkle_root,
-                       memory_count, previous_epoch_root, sealed_at, sealed_by
+                       memory_count, previous_epoch_root, sealed_at, sealed_by,
+                       anchored_at, anchor_metadata
                 FROM epochs
                 ORDER BY window_end DESC
                 LIMIT %s
@@ -267,8 +279,12 @@ def list_epochs(limit: int = 50) -> List[Dict[str, Any]]:
             )
             rows = cur.fetchall()
 
-    return [
-        {
+    results = []
+    for r in rows:
+        anchor_meta = r[9]
+        if isinstance(anchor_meta, str):
+            anchor_meta = json.loads(anchor_meta)
+        results.append({
             "epoch_id": r[0],
             "window_start": r[1],
             "window_end": r[2],
@@ -277,9 +293,10 @@ def list_epochs(limit: int = 50) -> List[Dict[str, Any]]:
             "previous_epoch_root": r[5],
             "sealed_at": r[6],
             "sealed_by": r[7],
-        }
-        for r in rows
-    ]
+            "anchored_at": r[8],
+            "anchor_metadata": anchor_meta,
+        })
+    return results
 
 
 def prove_inclusion(
@@ -333,6 +350,104 @@ def verify_inclusion(
     with only the proof, the leaf hash, and the expected root.
     """
     return verify_proof(content_hash, proof, expected_root)
+
+
+def prove_memory(
+    content_hash: str,
+    created_at: str,
+    window_s: int = EPOCH_WINDOW_S,
+) -> Optional[Dict[str, Any]]:
+    """Generate a Merkle inclusion proof by auto-detecting the epoch window.
+
+    Parses created_at to determine which epoch window the memory belongs to,
+    then delegates to prove_inclusion().  Eliminates manual window boundary
+    computation for callers.
+
+    Args:
+        content_hash: The memory's content hash (sha256:...).
+        created_at: ISO 8601 timestamp of the memory's creation.
+        window_s: Epoch window size in seconds.
+
+    Returns:
+        Inclusion proof dict, or None if the epoch is not sealed or the
+        memory is not in it.
+    """
+    dt = datetime.fromisoformat(created_at)
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+
+    start, end = _align_window(dt, window_s)
+    return prove_inclusion(content_hash, start.isoformat(), end.isoformat())
+
+
+def record_anchor(
+    epoch_id: str,
+    anchored_at: str,
+    anchor_metadata: Dict[str, Any],
+) -> bool:
+    """Record blockchain anchor metadata for a sealed epoch.
+
+    Chain-agnostic: the anchor_metadata dict must contain a 'proof_type'
+    key that determines the schema.  Known proof_types:
+
+      - ethereum: tx_hash, block_number, chain_id, verifier_uri
+      - ots: bitcoin_block, ots_proof
+      - rfc3161: tsa_uri, timestamp_token
+
+    Returns True if the epoch was updated, False if not found.
+    """
+    from open_brain.db import write_conn
+
+    with write_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                UPDATE epochs
+                SET anchored_at = %s,
+                    anchor_metadata = %s
+                WHERE epoch_id = %s
+                  AND anchored_at IS NULL
+                RETURNING epoch_id
+                """,
+                (anchored_at, json.dumps(anchor_metadata), epoch_id),
+            )
+            updated = cur.fetchone() is not None
+
+    if updated:
+        logger.info("Anchored epoch %s at %s", epoch_id, anchored_at)
+    return updated
+
+
+def get_unanchored_epochs(limit: int = 50) -> List[Dict[str, Any]]:
+    """Get sealed epochs that have not yet been anchored."""
+    from open_brain.db import read_conn
+
+    with read_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT epoch_id, window_start, window_end, merkle_root,
+                       memory_count, sealed_at
+                FROM epochs
+                WHERE anchored_at IS NULL
+                ORDER BY window_end ASC
+                LIMIT %s
+                """,
+                (limit,),
+            )
+            rows = cur.fetchall()
+
+    return [
+        {
+            "epoch_id": r[0],
+            "window_start": r[1],
+            "window_end": r[2],
+            "merkle_root": r[3],
+            "memory_count": r[4],
+            "sealed_at": r[5],
+        }
+        for r in rows
+    ]
 
 
 def verify_epoch_chain(limit: int = 100) -> Dict[str, Any]:

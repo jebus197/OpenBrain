@@ -113,6 +113,26 @@ def main(argv=None):
     p_genkeys.add_argument("--force", action="store_true",
                            help="Regenerate even if keys exist (invalidates signatures)")
 
+    # prove
+    p_prove = sub.add_parser("prove",
+                             help="Assemble a proof package for a memory")
+    p_prove.add_argument("memory_id", help="UUID of the memory to prove")
+
+    # reasoning
+    p_reasoning = sub.add_parser("reasoning",
+                                 help="Show reasoning chain for an agent")
+    p_reasoning.add_argument("agent", help="Agent identifier")
+    p_reasoning.add_argument("--session", dest="session_id",
+                             help="Filter to a specific session")
+    p_reasoning.add_argument("--limit", type=int, default=20)
+
+    # verify-reasoning
+    p_vr = sub.add_parser("verify-reasoning",
+                          help="Verify a reasoning checkpoint chain")
+    p_vr.add_argument("agent", help="Agent identifier")
+    p_vr.add_argument("--session", dest="session_id",
+                      help="Filter to a specific session")
+
     # im — delegates to open_brain.im.service
     p_im = sub.add_parser("im", help="IM service (SQLite WAL-mode messaging)")
     p_im.add_argument("im_args", nargs=argparse.REMAINDER,
@@ -158,6 +178,12 @@ def main(argv=None):
             _cmd_list_epochs(args)
         elif args.command == "verify-epochs":
             _cmd_verify_epochs()
+        elif args.command == "prove":
+            _cmd_prove(args)
+        elif args.command == "reasoning":
+            _cmd_reasoning(args)
+        elif args.command == "verify-reasoning":
+            _cmd_verify_reasoning(args)
     except Exception as e:
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
@@ -483,6 +509,83 @@ def _print_results(results, show_distance=False):
         print()
 
 
+def _cmd_prove(args):
+    from open_brain.reasoning import assemble_proof
+
+    proof = assemble_proof(args.memory_id)
+    if proof is None:
+        print(f"Memory not found: {args.memory_id}", file=sys.stderr)
+        sys.exit(1)
+
+    print(f"Proof package for memory {args.memory_id}")
+    print(f"  Content hash: {proof.content_hash}")
+    print(f"  Signature: {'present' if proof.signature else 'none'}")
+    print(f"  Public key: {'present' if proof.public_key_pem else 'none'}")
+    print(f"  Merkle proof: {'present' if proof.merkle_proof else 'none (epoch not sealed)'}")
+    print(f"  Anchor: {'present' if proof.anchor else 'none'}")
+    print(f"  Created: {proof.created_at}")
+    print(f"  Generated: {proof.generated_at}")
+    print(f"\nFull JSON:")
+    print(proof.to_json())
+
+
+def _cmd_reasoning(args):
+    from open_brain.reasoning import get_reasoning_chain
+
+    chain = get_reasoning_chain(
+        args.agent,
+        session_id=args.session_id,
+        limit=args.limit,
+    )
+    if not chain:
+        print(f"No reasoning checkpoints for agent '{args.agent}'.")
+        return
+
+    print(f"Reasoning chain for {args.agent}: {len(chain)} checkpoints\n")
+    for i, cp in enumerate(chain, 1):
+        created = cp.get("created_at", "?")
+        if isinstance(created, str) and "T" in created:
+            created = created[:19].replace("T", " ")
+        meta = cp.get("metadata", {})
+        session = meta.get("session_id", "-")
+        print(f"{i}. [{created}] session={session}")
+        print(f"   Hash: {cp.get('content_hash', 'none')}")
+        print(f"   Prev: {cp.get('previous_hash', 'none')}")
+        print(f"   {_truncate(cp['raw_text'], 200)}")
+        print()
+
+
+def _cmd_verify_reasoning(args):
+    from open_brain.reasoning import verify_reasoning_chain
+
+    result = verify_reasoning_chain(
+        args.agent,
+        session_id=args.session_id,
+    )
+    print(f"Reasoning chain verification for {args.agent}: {result.total} checkpoints")
+    print(f"  Valid: {result.valid}")
+    print(f"  Hash chain intact: {result.hash_chain_intact}")
+    print(f"  Signatures: {result.signatures_valid} valid, "
+          f"{result.signatures_invalid} invalid, "
+          f"{result.signatures_missing} missing")
+    print(f"  Epoch proofs: {result.epoch_proofs} found, "
+          f"{result.epoch_proofs_missing} missing")
+    print(f"  Anchored: {result.anchored}")
+
+    if result.breaks:
+        print(f"\n  BREAKS ({len(result.breaks)}):")
+        for b in result.breaks[:10]:
+            check = b.get("check", "?")
+            detail = b.get("detail", "?")
+            mem_id = b.get("memory_id", "")
+            print(f"    [{check}] {detail}")
+            if mem_id:
+                print(f"      Memory: {mem_id}")
+        sys.exit(1)
+    else:
+        print("  Chain integrity: OK")
+
+
 def _cmd_seal_epoch(args):
     from open_brain.epoch import seal_epoch, EPOCH_WINDOW_S
 
@@ -512,6 +615,11 @@ def _cmd_list_epochs(args):
         print(f"  Root: {e['merkle_root']}")
         print(f"  Memories: {e['memory_count']}")
         print(f"  Sealed: {e['sealed_at']} by {e['sealed_by']}")
+        if e.get("anchored_at"):
+            anchor = e.get("anchor_metadata", {})
+            print(f"  Anchored: {e['anchored_at']} ({anchor.get('proof_type', '?')})")
+        else:
+            print(f"  Anchored: no")
         print()
 
 

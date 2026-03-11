@@ -143,6 +143,53 @@ class MemoryFacade:
         return db.export_memories(path, encrypt_passphrase=encrypt_passphrase)
 
     # ------------------------------------------------------------------
+    # Reasoning verification
+    # ------------------------------------------------------------------
+
+    def assemble_proof(
+        self,
+        memory_id: str,
+    ) -> Any:
+        """Assemble a self-contained proof package for a memory."""
+        from open_brain.reasoning import assemble_proof as _assemble_proof
+
+        return _assemble_proof(memory_id)
+
+    def get_reasoning_chain(
+        self,
+        agent: Optional[str] = None,
+        *,
+        session_id: Optional[str] = None,
+        limit: int = 20,
+    ) -> List[Dict[str, Any]]:
+        """Retrieve chronological reasoning checkpoints for an agent."""
+        from open_brain.reasoning import get_reasoning_chain as _get_chain
+
+        return _get_chain(agent or self._agent, session_id=session_id, limit=limit)
+
+    def verify_reasoning_chain(
+        self,
+        agent: Optional[str] = None,
+        *,
+        session_id: Optional[str] = None,
+    ) -> Any:
+        """Verify a reasoning checkpoint chain (5 checks)."""
+        from open_brain.reasoning import verify_reasoning_chain as _verify
+
+        return _verify(agent or self._agent, session_id=session_id)
+
+    def export_reasoning_proof(
+        self,
+        agent: Optional[str] = None,
+        *,
+        session_id: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Export a self-contained reasoning proof for third-party verification."""
+        from open_brain.reasoning import export_reasoning_proof as _export
+
+        return _export(agent or self._agent, session_id=session_id)
+
+    # ------------------------------------------------------------------
     # Meta
     # ------------------------------------------------------------------
 

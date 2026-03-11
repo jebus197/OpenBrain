@@ -442,6 +442,27 @@ def get_latest_content_hash() -> Optional[str]:
             return row[0] if row else None
 
 
+def get_memory(memory_id: str) -> Optional[Dict[str, Any]]:
+    """Retrieve a single memory by UUID.
+
+    Returns a dict (no embedding) or None if not found.
+    """
+    with read_conn() as conn:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(
+                """
+                SELECT id, raw_text, content_hash, previous_hash,
+                       signature, metadata, created_at
+                FROM memories
+                WHERE id = %s
+                """,
+                (memory_id,),
+            )
+            row = cur.fetchone()
+
+    return _row_to_dict(row) if row else None
+
+
 # ---------------------------------------------------------------------------
 # Export / Import
 # ---------------------------------------------------------------------------

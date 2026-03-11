@@ -151,6 +151,97 @@ TOOLS = [
             "required": ["agent"],
         },
     ),
+    Tool(
+        name="assemble_proof",
+        description=(
+            "Assemble a self-contained proof package for a memory. "
+            "Verifiable with SHA-256 + Ed25519 + a block explorer — "
+            "no Open Brain installation required."
+        ),
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "memory_id": {
+                    "type": "string",
+                    "description": "UUID of the memory to prove",
+                },
+            },
+            "required": ["memory_id"],
+        },
+    ),
+    Tool(
+        name="get_reasoning_chain",
+        description=(
+            "Retrieve chronological reasoning checkpoints for an agent. "
+            "Optionally filtered by session."
+        ),
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "agent": {
+                    "type": "string",
+                    "description": "Source agent identifier",
+                },
+                "session_id": {
+                    "type": "string",
+                    "description": "Filter to a specific session",
+                },
+                "limit": {"type": "integer", "default": 20, "maximum": 1000},
+            },
+            "required": ["agent"],
+        },
+    ),
+    Tool(
+        name="verify_reasoning_chain",
+        description=(
+            "Verify a reasoning checkpoint chain with five checks: "
+            "content hash integrity, hash chain continuity, signature "
+            "validity, epoch inclusion, and epoch chain."
+        ),
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "agent": {
+                    "type": "string",
+                    "description": "Source agent identifier",
+                },
+                "session_id": {
+                    "type": "string",
+                    "description": "Filter to a specific session",
+                },
+            },
+            "required": ["agent"],
+        },
+    ),
+    Tool(
+        name="record_anchor",
+        description=(
+            "Record blockchain anchor metadata for a sealed epoch. "
+            "Chain-agnostic: proof_type determines schema "
+            "(ethereum, ots, rfc3161)."
+        ),
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "epoch_id": {
+                    "type": "string",
+                    "description": "UUID of the sealed epoch",
+                },
+                "anchored_at": {
+                    "type": "string",
+                    "description": "ISO 8601 timestamp of anchoring",
+                },
+                "anchor_metadata": {
+                    "type": "object",
+                    "description": (
+                        "Chain-specific metadata. Must include proof_type "
+                        "(ethereum, ots, rfc3161)"
+                    ),
+                },
+            },
+            "required": ["epoch_id", "anchored_at", "anchor_metadata"],
+        },
+    ),
 ]
 
 
@@ -222,6 +313,38 @@ def _dispatch(name: str, args: dict) -> Any:
 
     elif name == "get_session_context":
         return db.get_session_context(agent=args["agent"])
+
+    elif name == "assemble_proof":
+        from open_brain.reasoning import assemble_proof as _assemble_proof
+        proof = _assemble_proof(args["memory_id"])
+        if proof is None:
+            return {"error": "Memory not found"}
+        return proof.to_dict()
+
+    elif name == "get_reasoning_chain":
+        from open_brain.reasoning import get_reasoning_chain as _get_chain
+        return _get_chain(
+            args["agent"],
+            session_id=args.get("session_id"),
+            limit=args.get("limit", 20),
+        )
+
+    elif name == "verify_reasoning_chain":
+        from open_brain.reasoning import verify_reasoning_chain as _verify_chain
+        result = _verify_chain(
+            args["agent"],
+            session_id=args.get("session_id"),
+        )
+        return result.to_dict()
+
+    elif name == "record_anchor":
+        from open_brain.epoch import record_anchor as _record_anchor
+        updated = _record_anchor(
+            epoch_id=args["epoch_id"],
+            anchored_at=args["anchored_at"],
+            anchor_metadata=args["anchor_metadata"],
+        )
+        return {"updated": updated}
 
     else:
         raise ValueError(f"Unknown tool: {name}")

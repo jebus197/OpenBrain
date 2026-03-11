@@ -8,7 +8,7 @@ from open_brain import config
 
 
 def test_tool_count():
-    assert len(TOOLS) == 6
+    assert len(TOOLS) == 10
 
 
 def test_tool_names():
@@ -16,6 +16,8 @@ def test_tool_names():
     expected = {
         "capture_memory", "semantic_search", "list_recent",
         "get_pending_tasks", "update_task_status", "get_session_context",
+        "assemble_proof", "get_reasoning_chain",
+        "verify_reasoning_chain", "record_anchor",
     }
     assert names == expected
 
