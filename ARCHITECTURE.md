@@ -227,16 +227,16 @@ This is stated intent and long-term architectural direction, not a current imple
 | AES-256-GCM encrypted export | **BUILT** | `open_brain/crypto.py` — Scrypt KDF, authenticated encryption |
 | Node identity | **BUILT** | `open_brain/config.py` — hostname-derived, embedded in metadata |
 | JSONL export/import | **BUILT** | `open_brain/cli.py export/import`, `open_brain/db.py` |
-| MCP server | **BUILT** | `open_brain/mcp_server.py` — six tools, JSON-RPC over stdio |
+| MCP server | **BUILT** | `open_brain/mcp_server.py` — ten tools, JSON-RPC over stdio |
 | CLI | **BUILT** | `open_brain/cli.py` — full command set |
 | File bridge | **BUILT** | `tools/ob_bridge.py` — JSON drop for sandboxed agents |
-| IM service | **BUILT** | `tools/im_service.py` — rolling buffer, file-locked |
-| Coordination bus | **BUILT** | `open_brain/coordination/` — typed envelopes, monotonic sequencing, circuit breakers, channel routing (broadcast/queue/direct), presence protocol, request/reply. 54 tests |
+| IM service | **BUILT** | `open_brain/im/` — SQLite WAL-mode messaging, FTS5 search, threading, delivery receipts, retention policies |
+| Coordination bus | **BUILT** | `open_brain/coordination/` — typed envelopes, monotonic sequencing, circuit breakers, channel routing (broadcast/queue/direct), presence protocol, request/reply. 56 tests |
 | Provenance tracking (Scale 2+) | **BUILT** | `open_brain/db.py` — `import_memory()` records `replicated_from`, `replicated_at` |
 | Cross-machine transport (Scale 2) | **DESIGNED** | Security primitives built; git-based transport is manual workflow |
 | Cross-project search (Scale 3) | **BUILT** | `open_brain/db.py` — `project` filter on `semantic_search()` and `list_recent()`, `open_brain/cli.py --project` flag |
 | Team replication (Scale 4) | **DESIGNED** | Node identity + JSONL replication protocol specified |
-| Epoch Merkle tree | **BUILT** | `open_brain/merkle.py` (RFC 6962), `open_brain/epoch.py` (seal/verify/prove), `open_brain/migrations/003_epochs.sql`, 20 tests |
+| Epoch Merkle tree | **BUILT** | `open_brain/merkle.py` (RFC 6962), `open_brain/epoch.py` (seal/verify/prove), `open_brain/migrations/003_epochs.sql`, 38 tests |
 | On-chain anchoring | **DESIGNED** (Genesis infrastructure **BUILT**) | OB epoch Merkle infrastructure built (`merkle.py`, `epoch.py`, `EpochAdapter`). On-chain anchoring operational in Genesis: 8 constitutional anchors on Ethereum Sepolia ([Trust Mint Log](https://github.com/jebus197/Project_Genesis/blob/main/docs/ANCHORS.md)), four-domain commitment system (`commitment_builder.py`, `epoch_service.py`), tiered anchor cadence (C0/C1/C2), constitutional events anchor immediately. OB→Genesis bridge via `EpochAdapter` — not yet wired end-to-end |
 | Trust-weighted provenance | **DESIGNED** | Memory format supports trust metadata; trust engine is in Genesis |
 | Constitutional governance | **DESIGNED** | Governance framework exists in Genesis; OB integration not yet built |

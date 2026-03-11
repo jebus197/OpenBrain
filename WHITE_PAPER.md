@@ -115,7 +115,7 @@ The degradation hierarchy:
 
 Open Brain exposes three access interfaces, all backed by the same storage and verification layer:
 
-1. **CLI** (`open_brain/cli.py`) — Command-line interface for human operators. Full command set including `store`, `search`, `export`, `import`, `verify`, `prove`, `reasoning`, `verify-reasoning`.
+1. **CLI** (`open_brain/cli.py`) — Command-line interface for human operators. Full command set including `capture`, `search`, `export`, `import`, `verify`, `prove`, `reasoning`, `verify-reasoning`.
 
 2. **MCP Server** (`open_brain/mcp_server.py`) — Model Context Protocol server for AI agents. JSON-RPC over stdio. Ten tools: `capture_memory`, `semantic_search`, `list_recent`, `get_pending_tasks`, `update_task_status`, `get_session_context`, `assemble_proof`, `get_reasoning_chain`, `verify_reasoning_chain`, `record_anchor`.
 
@@ -706,7 +706,7 @@ These are not edge cases — they are the primary verification targets. A verifi
 
 ### 9.4 What the Test Suite Covers
 
-The OB test suite (387+ tests at time of writing) covers:
+The OB test suite (438+ tests at time of writing) covers:
 
 - **Unit tests:** Individual functions in isolation (hashing, signing, Merkle operations, epoch alignment, database operations).
 - **Integration tests:** Composition of multiple subsystems (proof assembly requires db + hashing + crypto + epoch + merkle).
@@ -759,7 +759,7 @@ Falsification: Demonstrate a modification to stored memory content that is not d
 Falsification: Identify a verification step in the Proof Package that requires OB-specific code, data, or infrastructure beyond what is included in the package itself (excluding the block explorer for anchor verification).
 
 **Claim: The memory format is scale-invariant.**
-Falsification: Demonstrate a scale transition (e.g., Scale 0 to Scale 1, or Scale 2 to Scale 3) that requires modifying the memory format (the nine fields: id, raw_text, content_hash, previous_hash, signature, metadata, embedding, created_at, access_count) rather than only modifying transport, governance, or infrastructure.
+Falsification: Demonstrate a scale transition (e.g., Scale 0 to Scale 1, or Scale 2 to Scale 3) that requires modifying the memory format (the nine fields: id, raw_text, content_hash, previous_hash, signature, metadata, embedding, embedding_model, created_at) rather than only modifying transport, governance, or infrastructure.
 
 **Claim: Graceful degradation preserves core functionality.**
 Falsification: Demonstrate a configuration (e.g., no PostgreSQL, no Ed25519 keys) where the system fails silently — producing incorrect results without raising an error — rather than degrading gracefully with explicit notification of reduced capability.

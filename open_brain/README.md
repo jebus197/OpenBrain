@@ -82,7 +82,7 @@ All primitives are mathematical standards — platform-agnostic (macOS, Linux, W
 
 ## Memory Types
 
-decision, task, session_summary, insight, blocker, review, handoff
+decision, task, session_summary, insight, blocker, review, handoff, reasoning_checkpoint
 
 ## Default Areas
 
