@@ -226,10 +226,14 @@ def verify_envelope_signature(
 ) -> bool:
     """Verify an envelope's Ed25519 signature.
 
-    Returns False if the signature is missing, invalid, or the
-    cryptography library is unavailable.
+    Returns False if the signature is missing, invalid, the payload
+    has been tampered with, or the cryptography library is unavailable.
     """
     if not envelope.signature:
+        return False
+    # Re-derive content hash from payload — reject if it doesn't match.
+    expected_hash = compute_message_hash(envelope.payload)
+    if expected_hash != envelope.content_hash:
         return False
     try:
         from cryptography.hazmat.primitives.asymmetric.ed25519 import (
